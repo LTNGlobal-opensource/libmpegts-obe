@@ -43,6 +43,7 @@
 
 #define PRIVATE_SECTION   0x05
 #define PRIVATE_DATA      0x06
+#define PRIVATE_USER      0x86
 
 #define TS_HEADER_SIZE 4
 #define TS_PACKET_SIZE 188
@@ -292,6 +293,7 @@ struct ts_writer_t
     int ts_muxrate;
 
     int pat_cc;
+    int section_cc;
 
     int num_programs;
     ts_int_program_t *programs[MAX_PROGRAMS];

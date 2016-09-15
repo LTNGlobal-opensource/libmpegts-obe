@@ -57,12 +57,30 @@ static const int steam_type_table[27][2] =
     { LIBMPEGTS_DVB_VBI,         PRIVATE_DATA },
     { LIBMPEGTS_ANCILLARY_RDD11, PRIVATE_DATA },
     { LIBMPEGTS_ANCILLARY_2038,  PRIVATE_DATA },
+    { LIBMPEGTS_TABLE_SECTION,   PRIVATE_USER },
     { 0 },
 };
 
 /**** Descriptors ****/
 /** MPEG-2 Systems Descriptors **/
 /* Registration Descriptor */
+void write_cue_registration_descriptor(bs_t *s)
+{
+    bs_write(s, 8, 0x05); // descriptor_tag
+    bs_write(s, 8, 0x04); // descriptor_length
+    bs_write(s, 8, 0x43); // CUEI
+    bs_write(s, 8, 0x55); // CUEI
+    bs_write(s, 8, 0x45); // CUEI
+    bs_write(s, 8, 0x49); // CUEI
+}
+
+void write_cue_identifier_descriptor(bs_t *s)
+{
+    bs_write(s, 8, 0x8a); // descriptor_tag
+    bs_write(s, 8, 0x01); // descriptor_length
+    bs_write(s, 8, 0x00); // splice, insert, null
+}
+
 void write_registration_descriptor( bs_t *s, int descriptor_tag, int descriptor_length, char *format_id )
 {
     bs_write( s, 8, descriptor_tag );    // descriptor_tag
@@ -342,6 +360,32 @@ static int write_pcr_empty( ts_writer_t *w, ts_int_program_t *program, int first
     return 0;
 }
 
+int write_section_table(ts_writer_t *w, uint16_t pid, uint8_t *section, uint16_t section_length)
+{
+    int start;
+    bs_t *s = &w->out.bs;
+
+    /* TODO: In theory multiple sections (edge case) would roll the same single
+     * counter. Don't use multiple sections without fixing this.
+     */
+    write_packet_header( w, s, 1, pid, PAYLOAD_ONLY, &w->section_cc);
+    bs_write( s, 8, 0 ); // pointer field
+
+    start = bs_pos( s );
+    for (uint16_t i = 0; i < section_length; i++)
+        bs_write(s, 8, *(section + i));
+
+    bs_flush(s);
+
+    // -40 to include header and pointer field
+    write_padding(s, start - 40);
+    add_to_buffer(&w->tb);
+    if (increase_pcr(w, 1, 0) < 0 )
+        return -1;
+
+    return 0;
+}
+
 /**** PSI ****/
 static int write_pat( ts_writer_t *w )
 {
@@ -477,6 +521,7 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
         write_registration_descriptor( &q, REGISTRATION_DESCRIPTOR_TAG, 4, "HDMV" );
 
     /* Optional descriptor(s) here */
+    write_cue_registration_descriptor(&q);
 
     bs_flush( &q );
     bs_write( &p, 12, bs_pos( &q ) >> 3 );   // program_info_length
@@ -485,6 +530,7 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
     for( int i = 0; i < program->num_streams; i++ )
     {
          ts_int_stream_t *stream = program->streams[i];
+	//printf("program %d format %02x stream_type %02x\n", i, stream->stream_format, stream->stream_type);
 
          bs_write( &p, 8, stream->stream_type & 0xff ); // stream_type
          bs_write( &p, 3, 0x7 );  // reserved
@@ -496,6 +542,9 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
 
          if( stream->stream_format != LIBMPEGTS_ANCILLARY_RDD11 )
              write_data_stream_alignment_descriptor( &q );
+
+         if(stream->stream_format == LIBMPEGTS_TABLE_SECTION)
+             write_cue_identifier_descriptor(&q);
 
          if( stream->dvb_au )
          {
@@ -577,6 +626,20 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
          bs_write( &p, 12, bs_pos( &q ) >> 3 );   // ES_info_length
          write_bytes( &p, temp1, bs_pos( &q ) >> 3 );
     }
+
+#if 0
+    /* Write the Private stream with our SCTE35 pid 0x0a08 */
+    bs_write(&p, 8, 0x86);    /* Private stream */
+    bs_write(&p, 3, 0x7);     /* Reserved */
+    bs_write(&p, 13, 0x0a08); /* Elementary PID */
+    bs_write(&p, 4, 0xf);     /* Reserved */
+    bs_init(&q, temp1, 512);
+    write_cue_identifier_descriptor(&q);
+    bs_flush(&q);
+    bs_write(&p, 12, bs_pos( &q ) >> 3 ); /* ES_info_length */
+    write_bytes(&p, temp1, bs_pos(&q) >> 3);
+    /* End: Write the Private stream with our SCTE35 pid */
+#endif
 
     /* section length includes crc */
     section_length = (bs_pos( &p ) >> 3) + 4;
@@ -723,6 +786,22 @@ static void write_timestamp( bs_t *s, uint64_t timestamp )
     bs_write( s, 8, (timestamp >> 7) & 0xff );  // timestamp [14..0]
     bs_write( s, 7, timestamp & 0x7f );         // timestamp [14..0]
     bs_write1( s, 1 );                          // marker_bit
+}
+
+static int write_table_section( ts_writer_t *w, ts_int_program_t *program, ts_frame_t *in_frame, ts_int_pes_t *out_pes )
+{
+    bs_t s;
+    int header_size;
+
+    bs_init(&s, out_pes->data, in_frame->size + 200 );
+    write_bytes(&s, in_frame->data, in_frame->size);
+    header_size = bs_pos( &s ) >> 3;
+    bs_flush(&s);
+
+    out_pes->size = out_pes->bytes_left = bs_pos( &s ) >> 3;
+    out_pes->cur_pos = out_pes->data;
+
+    return header_size;
 }
 
 static int write_pes( ts_writer_t *w, ts_int_program_t *program, ts_frame_t *in_frame, ts_int_pes_t *out_pes )
@@ -1589,6 +1668,13 @@ int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t
                return -1;
             }
         }
+        else if(stream->stream_format == LIBMPEGTS_TABLE_SECTION) {
+            if (!stream->pid) {
+               fprintf(stderr, "DVB TABLE SECTION pid needs additional information.\n");
+               return -1;
+            }
+	}
+
         // TODO more
 
         new_pes[i] = calloc( 1, sizeof(ts_int_pes_t) );
@@ -1621,6 +1707,8 @@ int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t
             new_pes[i]->initial_arrival_time = (new_pes[i]->dts - 3003) * 300; /* SCTE-127 VBI is always in terms of NTSC */
         else if( stream->stream_format == LIBMPEGTS_DVB_VBI )
             new_pes[i]->initial_arrival_time = (new_pes[i]->dts - 3600) * 300;
+        else if(stream->stream_format == LIBMPEGTS_TABLE_SECTION )
+            new_pes[i]->initial_arrival_time = 0; /* FIXME: is this right? */
         else
             new_pes[i]->initial_arrival_time = (new_pes[i]->dts - stream->max_frame_size) * 300; /* earliest that a frame can arrive */
 
@@ -1649,7 +1737,13 @@ int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t
            return -1;
         }
 
-        new_pes[i]->header_size = write_pes( w, program, &frames[i], new_pes[i] );
+        if (stream->stream_format == LIBMPEGTS_TABLE_SECTION) {
+            new_pes[i]->header_size = 0;
+            //write_section_table(w, stream->pid, frames[i].data, frames[i].size);
+            new_pes[i]->header_size = write_table_section(w, program, &frames[i], new_pes[i]);
+            new_pes[i]->dts = 0;
+        } else
+            new_pes[i]->header_size = write_pes(w, program, &frames[i], new_pes[i]);
     }
 
     if( !initial_queued_pes )
@@ -1765,7 +1859,7 @@ int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t
                 fprintf( stderr, "\n pcr_stop is less than pcr pid: %i pcr_stop: %"PRIi64" pcr: %"PRIi64" \n", pes->stream->pid, pcr_stop, cur_pcr );
 
             // FIXME complain less
-            if( pes->dts * 300 < cur_pcr )
+            if (pes->dts && pes->dts * 300 < cur_pcr)
                 fprintf( stderr, "\n dts is less than pcr pid: %i dts: %"PRIi64" pcr: %"PRIi64" \n", pes->stream->pid, pes->dts*300, cur_pcr );
 
             bs_init( &q, temp, 150 );

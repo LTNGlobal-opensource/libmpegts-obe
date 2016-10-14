@@ -794,6 +794,7 @@ static int write_table_section( ts_writer_t *w, ts_int_program_t *program, ts_fr
     int header_size;
 
     bs_init(&s, out_pes->data, in_frame->size + 200 );
+    bs_write(&s, 8, 0); /* Pointer */
     write_bytes(&s, in_frame->data, in_frame->size);
     header_size = bs_pos( &s ) >> 3;
     bs_flush(&s);

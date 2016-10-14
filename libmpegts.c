@@ -614,7 +614,7 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
              write_registration_descriptor( &q, PRIVATE_DATA_DESCRIPTOR_TAG, 4, "LU-A" );
          else if( stream->stream_format == LIBMPEGTS_ANCILLARY_2038 )
          {
-             write_registration_descriptor( &q, PRIVATE_DATA_DESCRIPTOR_TAG, 4, "VANC" );
+             write_registration_descriptor( &q, REGISTRATION_DESCRIPTOR_TAG, 4, "VANC" );
              write_anc_data_descriptor( &q );
          }
 

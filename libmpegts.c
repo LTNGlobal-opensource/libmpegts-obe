@@ -788,13 +788,14 @@ static void write_timestamp( bs_t *s, uint64_t timestamp )
     bs_write1( s, 1 );                          // marker_bit
 }
 
-static int write_table_section( ts_writer_t *w, ts_int_program_t *program, ts_frame_t *in_frame, ts_int_pes_t *out_pes )
+static int write_table_section( ts_writer_t *w, ts_int_program_t *program, ts_frame_t *in_frame, ts_int_pes_t *out_pes, int doPointer)
 {
     bs_t s;
     int header_size;
 
     bs_init(&s, out_pes->data, in_frame->size + 200 );
-    bs_write(&s, 8, 0); /* Pointer */
+    if (doPointer)
+        bs_write(&s, 8, 0); /* Pointer */
     write_bytes(&s, in_frame->data, in_frame->size);
     header_size = bs_pos( &s ) >> 3;
     bs_flush(&s);
@@ -1738,10 +1739,15 @@ int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t
            return -1;
         }
 
+        if (stream->stream_format == LIBMPEGTS_ANCILLARY_2038) {
+            new_pes[i]->header_size = 0;
+            new_pes[i]->header_size = write_table_section(w, program, &frames[i], new_pes[i], 0);
+            new_pes[i]->dts = 0;
+	} else
         if (stream->stream_format == LIBMPEGTS_TABLE_SECTION) {
             new_pes[i]->header_size = 0;
             //write_section_table(w, stream->pid, frames[i].data, frames[i].size);
-            new_pes[i]->header_size = write_table_section(w, program, &frames[i], new_pes[i]);
+            new_pes[i]->header_size = write_table_section(w, program, &frames[i], new_pes[i], 1);
             new_pes[i]->dts = 0;
         } else
             new_pes[i]->header_size = write_pes(w, program, &frames[i], new_pes[i]);

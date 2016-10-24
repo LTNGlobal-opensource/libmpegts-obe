@@ -627,20 +627,6 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
          write_bytes( &p, temp1, bs_pos( &q ) >> 3 );
     }
 
-#if 0
-    /* Write the Private stream with our SCTE35 pid 0x0a08 */
-    bs_write(&p, 8, 0x86);    /* Private stream */
-    bs_write(&p, 3, 0x7);     /* Reserved */
-    bs_write(&p, 13, 0x0a08); /* Elementary PID */
-    bs_write(&p, 4, 0xf);     /* Reserved */
-    bs_init(&q, temp1, 512);
-    write_cue_identifier_descriptor(&q);
-    bs_flush(&q);
-    bs_write(&p, 12, bs_pos( &q ) >> 3 ); /* ES_info_length */
-    write_bytes(&p, temp1, bs_pos(&q) >> 3);
-    /* End: Write the Private stream with our SCTE35 pid */
-#endif
-
     /* section length includes crc */
     section_length = (bs_pos( &p ) >> 3) + 4;
     bs_write( &o, 12, section_length & 0x3ff );

@@ -1804,6 +1804,13 @@ int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t
         for( int i = 0; i < w->num_buffered_frames; i++ )
         {
             stream = queued_pes[i]->stream;
+            if ((stream->stream_format == LIBMPEGTS_TABLE_SECTION) ||
+                (stream->stream_format == LIBMPEGTS_ANCILLARY_2038)) {
+                /* Immediate eject the PSIP */
+                pes = queued_pes[i];
+                break;
+            }
+
             if( (!pes || queued_pes[i]->dts < pes->dts) && !IS_VIDEO( stream ) )
             {
                 int total_packets = (queued_pes[i]->size + 183) / 184;
@@ -1816,6 +1823,7 @@ int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t
                     ( drip_rate < remaining_drip_rate || queued_pes[i]->final_arrival_time < cur_pcr ) )
                 {
                     pes = queued_pes[i];
+                    break;
                 }
             }
         }

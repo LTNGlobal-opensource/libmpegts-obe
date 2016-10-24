@@ -1852,7 +1852,7 @@ int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t
                 fprintf( stderr, "\n pcr_stop is less than pcr pid: %i pcr_stop: %"PRIi64" pcr: %"PRIi64" \n", pes->stream->pid, pcr_stop, cur_pcr );
 
             // FIXME complain less
-            if (pes->dts && pes->dts * 300 < cur_pcr)
+            if (pes->dts && pes->dts * 3000 < cur_pcr)
                 fprintf( stderr, "\n dts is less than pcr pid: %i dts: %"PRIi64" pcr: %"PRIi64" \n", pes->stream->pid, pes->dts*300, cur_pcr );
 
             bs_init( &q, temp, 150 );

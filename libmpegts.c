@@ -28,6 +28,7 @@
 #include "smpte/smpte.h"
 #include "crc/crc.h"
 #include <math.h>
+#include <time.h>
 
 static const int steam_type_table[27][2] =
 {
@@ -1595,6 +1596,16 @@ int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t
     {
         fprintf( stderr, "Invalid number of frames\n" );
         return -1;
+    }
+
+    if (w->num_buffered_frames > 128) {
+        /* Warning once per second. */
+        static time_t last = 0, now;
+        time(&now);
+        if (last != now) {
+           last = now;
+           fprintf(stderr, "libmpegts: %s() Warning: Having %d buffered frames is beyond normality.\n", __func__, w->num_buffered_frames);
+        }
     }
 
     if( num_frames )

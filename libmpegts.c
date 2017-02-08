@@ -361,32 +361,6 @@ static int write_pcr_empty( ts_writer_t *w, ts_int_program_t *program, int first
     return 0;
 }
 
-int write_section_table(ts_writer_t *w, uint16_t pid, uint8_t *section, uint16_t section_length)
-{
-    int start;
-    bs_t *s = &w->out.bs;
-
-    /* TODO: In theory multiple sections (edge case) would roll the same single
-     * counter. Don't use multiple sections without fixing this.
-     */
-    write_packet_header( w, s, 1, pid, PAYLOAD_ONLY, &w->section_cc);
-    bs_write( s, 8, 0 ); // pointer field
-
-    start = bs_pos( s );
-    for (uint16_t i = 0; i < section_length; i++)
-        bs_write(s, 8, *(section + i));
-
-    bs_flush(s);
-
-    // -40 to include header and pointer field
-    write_padding(s, start - 40);
-    add_to_buffer(&w->tb);
-    if (increase_pcr(w, 1, 0) < 0 )
-        return -1;
-
-    return 0;
-}
-
 /**** PSI ****/
 static int write_pat( ts_writer_t *w )
 {

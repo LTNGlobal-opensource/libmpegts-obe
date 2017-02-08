@@ -681,7 +681,4 @@ int ts_delete_stream( ts_writer_t *w, int pid );
 
 int ts_close_writer( ts_writer_t *w );
 
-/* Examples TODO */
-int write_section_table(ts_writer_t *w, uint16_t pid, uint8_t *section, uint16_t section_length);
-
 #endif

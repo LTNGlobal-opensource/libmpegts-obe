@@ -55,8 +55,8 @@
 #define MAX_STREAMS    100
 
 /* DVB 40ms recommendation */
-#define PCR_MAX_RETRANS_TIME 40
-#define PAT_MAX_RETRANS_TIME 100
+#define PCR_MAX_RETRANS_TIME 35
+#define PAT_MAX_RETRANS_TIME 95
 
 /* PIDs */
 #define PAT_PID         0x0000

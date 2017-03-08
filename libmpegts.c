@@ -1548,6 +1548,35 @@ void ts_remove_sdt( ts_writer_t *w )
 
 int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t **out, int *len, int64_t **pcr_list )
 {
+#if 0
+static uint64_t last_aud = 0;
+static uint64_t last_vid = 0;
+
+for (int z = 0; z < num_frames; z++) {
+  uint64_t diff = 0;
+  if ((frames + z)->pid == 0x31)
+    diff = (frames + z)->pts - last_vid;
+  if ((frames + z)->pid == 0x32)
+    diff = (frames + z)->pts - last_aud;
+
+  printf("%s() pid = %x size:%8d dts:%16llu pts:%16llu (%llu) -- iat:%16llu fat:%16llu\n",
+    __func__,
+    (frames + z)->pid,
+    (frames + z)->size,
+    (frames + z)->dts,
+    (frames + z)->pts,
+    (frames + z)->cpb_initial_arrival_time,
+    (frames + z)->cpb_final_arrival_time,
+    diff);
+
+if ((frames + z)->pid == 0x31)
+  last_vid = (frames + z)->pts;
+if ((frames + z)->pid == 0x32)
+  last_aud = (frames + z)->pts;
+
+}
+#endif
+  
     ts_int_program_t *program = w->programs[0];
     ts_int_stream_t *stream;
 

@@ -32,6 +32,14 @@ void parse_ac3_frame( ts_atsc_ac3_info *atsc_ac3_ctx, uint8_t *frame )
     atsc_ac3_ctx->num_channels = frame[6] >> 5;
 }
 
+/* From the A52 spec.
+ * "In System A, the AC-3 audio descriptor is titled “AC-3_audio_stream_descriptor” while
+ * in System B the AC-3 audio descriptor is titled “AC- 3_descriptor”. It should be noted
+ * that the syntax of these descriptors differs significantly between the two systems."
+ * ...
+ * ATSC has done so to complete the standardization process for System A.
+ * ATSC is System A.
+ */
 void write_atsc_ac3_descriptor( bs_t *s, ts_atsc_ac3_info *atsc_ac3_ctx )
 {
     bs_write( s, 8, ATSC_AC3_DESCRIPTOR_TAG ); // descriptor_tag

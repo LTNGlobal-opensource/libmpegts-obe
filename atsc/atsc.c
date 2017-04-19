@@ -39,6 +39,8 @@ void parse_ac3_frame( ts_atsc_ac3_info *atsc_ac3_ctx, uint8_t *frame )
  * ...
  * ATSC has done so to complete the standardization process for System A.
  * ATSC is System A.
+ *
+ * TODO: This descriptor is missing a number of mandatory fields.
  */
 void write_atsc_ac3_descriptor( bs_t *s, ts_atsc_ac3_info *atsc_ac3_ctx )
 {

@@ -24,12 +24,28 @@
 /* Second Loop of PMT */
 void parse_ac3_frame( ts_atsc_ac3_info *atsc_ac3_ctx, uint8_t *frame )
 {
+#if 0
+for (int i = 0; i < 16; i++)
+printf("%02x ", frame[i]);
+printf("\n");
+#endif
+
+    /* from the syncframe() frame. See A52 Table 5.1 */
     atsc_ac3_ctx->sample_rate_code = frame[4] >> 6;
+    atsc_ac3_ctx->bit_rate_code = frame[4] & 0x3f;
+
+    /* From the bsi() frame. See A52 Table 5.2 */
     atsc_ac3_ctx->bsid = frame[5] >> 3;
-    atsc_ac3_ctx->bit_rate_code = (frame[4] & 0x3f) >> 1;
-    atsc_ac3_ctx->surround_mode = (frame[6] & 1) << 1 | (frame[7] >> 7);
     atsc_ac3_ctx->bsmod = frame[5] & 0x7;
+    atsc_ac3_ctx->surround_mode = (frame[6] & 1) << 1 | (frame[7] >> 7);
     atsc_ac3_ctx->num_channels = frame[6] >> 5;
+    atsc_ac3_ctx->full_svc = 1;
+
+    atsc_ac3_ctx->langcod = 0xff; /* Deprecated in spec, must contain FF */
+    atsc_ac3_ctx->langcod2 = 0xff; /* Deprecated in spec, must contain FF */
+    atsc_ac3_ctx->mainid = 0;
+    atsc_ac3_ctx->priority = 0;
+    atsc_ac3_ctx->asvcflags = 0;
 }
 
 /* From the A52 spec.
@@ -45,14 +61,26 @@ void parse_ac3_frame( ts_atsc_ac3_info *atsc_ac3_ctx, uint8_t *frame )
 void write_atsc_ac3_descriptor( bs_t *s, ts_atsc_ac3_info *atsc_ac3_ctx )
 {
     bs_write( s, 8, ATSC_AC3_DESCRIPTOR_TAG ); // descriptor_tag
-    bs_write( s, 8, 3 ); // descriptor_length
+    if (atsc_ac3_ctx->num_channels == 0)
+        bs_write( s, 8, 8 ); // descriptor_length
+    else
+        bs_write( s, 8, 7 ); // descriptor_length
     bs_write( s, 3, atsc_ac3_ctx->sample_rate_code ); // sample_rate_code
     bs_write( s, 5, atsc_ac3_ctx->bsid ); // bsid
     bs_write( s, 6, atsc_ac3_ctx->bit_rate_code ); // bit_rate_code
     bs_write( s, 2, atsc_ac3_ctx->surround_mode ); // surround_mode
     bs_write( s, 3, atsc_ac3_ctx->bsmod ); // bsmod
     bs_write( s, 4, atsc_ac3_ctx->num_channels ); // num_channels
-    bs_write1( s, 1 );   // full_svc
+    bs_write( s, 1, atsc_ac3_ctx->full_svc);
+    bs_write( s, 8, atsc_ac3_ctx->langcod);
+    if (atsc_ac3_ctx->num_channels == 0)
+        bs_write( s, 8, atsc_ac3_ctx->langcod2);
+    if (atsc_ac3_ctx->bsmod < 2) {
+        bs_write( s, 8, 0x37); /* mainid = 1, priority = 1, reserved. */
+    }
+
+    bs_write( s, 8, 0x01); /* txtlen = 0, encoded = ISO8859-1. */
+    bs_write( s, 8, 0x3f); /* language_flag / flag_2 = 0, reserved. */
 }
 
 /* Also in EIT */

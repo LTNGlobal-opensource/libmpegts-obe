@@ -127,8 +127,18 @@ typedef struct
     int bsid;
     int bit_rate_code;
     int surround_mode;
+
+    /* A52 Spec: "This is a 3-bit field that is set to the same value
+     * as the bsmod field in the AC-3 elementary stream." */
     int bsmod;
     int num_channels;
+    int full_svc;
+    int langcod;
+    int langcod2;
+    int mainid;
+    int priority;
+    int asvcflags;
+
 } ts_atsc_ac3_info;
 
 /* Blu-Ray DTCP */

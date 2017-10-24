@@ -21,6 +21,78 @@
 #include "../common.h"
 #include "atsc.h"
 
+/* ATSC A/52:2002 Table 5.18 - Frame Size Code Table */
+/* It's questionable whether we need this as a table, or whether we should just play
+ * minor bitmask games to convert the value. I expect we'll add fsword size in the
+ * future so lets put the table in place for this now, then its easier to add later.
+ */
+static const struct ac3_frmsizecod_lookup_s {
+	uint32_t frmsizecod;
+	uint32_t nominal_bit_rate_kbps;
+	uint32_t bit_rate_code;
+} ac3_frmsizecod_lookup[] = {
+	{ 0x00, 32, 0x00 },
+	{ 0x01, 32, 0x00 },
+	{ 0x02, 40, 0x01 },
+	{ 0x03, 40, 0x01 },
+	{ 0x04, 48, 0x02 },
+	{ 0x05, 48, 0x02 },
+	{ 0x06, 56, 0x03 },
+	{ 0x07, 56, 0x03 },
+	{ 0x08, 64, 0x04 },
+	{ 0x09, 64, 0x04 },
+	{ 0x0a, 80, 0x05 },
+	{ 0x0b, 80, 0x05 },
+	{ 0x0c, 96, 0x06 },
+	{ 0x0d, 96, 0x06 },
+	{ 0x0e, 112, 0x07 },
+	{ 0x0f, 112, 0x07 },
+	{ 0x10, 128, 0x08 },
+	{ 0x11, 128, 0x08 },
+	{ 0x12, 160, 0x09 },
+	{ 0x13, 160, 0x09 },
+	{ 0x14, 192, 0x0a },
+	{ 0x15, 192, 0x0a },
+	{ 0x16, 224, 0x0b },
+	{ 0x17, 224, 0x0b },
+	{ 0x18, 256, 0x0c },
+	{ 0x19, 256, 0x0c },
+	{ 0x1a, 320, 0x0d },
+	{ 0x1b, 320, 0x0d },
+	{ 0x1c, 384, 0x0e },
+	{ 0x1d, 384, 0x0e },
+	{ 0x1e, 448, 0x0f },
+	{ 0x1f, 448, 0x0f },
+	{ 0x20, 512, 0x10 },
+	{ 0x21, 512, 0x10 },
+	{ 0x22, 576, 0x11 },
+	{ 0x23, 576, 0x11 },
+	{ 0x24, 640, 0x12 },
+	{ 0x25, 640, 0x12 },
+};
+
+static uint32_t lookup_bit_rate_code(uint32_t nominal_bit_rate_kbps)
+{
+	for (int i = 0; i < sizeof(ac3_frmsizecod_lookup) / sizeof(struct ac3_frmsizecod_lookup_s); i++) {
+		const struct ac3_frmsizecod_lookup_s *e = &ac3_frmsizecod_lookup[i];
+		if (e->nominal_bit_rate_kbps == nominal_bit_rate_kbps)
+			return e->bit_rate_code;
+	}
+
+	return 0; /* Failure */
+}
+
+static uint32_t lookup_nominal_bit_rate_kbps(uint32_t frmsizecod)
+{
+	for (int i = 0; i < sizeof(ac3_frmsizecod_lookup) / sizeof(struct ac3_frmsizecod_lookup_s); i++) {
+		const struct ac3_frmsizecod_lookup_s *e = &ac3_frmsizecod_lookup[i];
+		if (e->frmsizecod == frmsizecod)
+			return lookup_bit_rate_code(e->nominal_bit_rate_kbps);
+	}
+
+	return 0; /* Failure */
+}
+
 /* Second Loop of PMT */
 void parse_ac3_frame( ts_atsc_ac3_info *atsc_ac3_ctx, uint8_t *frame )
 {
@@ -32,7 +104,11 @@ printf("\n");
 
     /* from the syncframe() frame. See A52 Table 5.1 */
     atsc_ac3_ctx->sample_rate_code = frame[4] >> 6;
-    atsc_ac3_ctx->bit_rate_code = frame[4] & 0x3f;
+
+    /* We're setting this field to the exact_bit_rate as specified in table A4.3,
+     * NOT the bit_rate_upper_limit.
+     */
+    atsc_ac3_ctx->bit_rate_code = lookup_nominal_bit_rate_kbps(frame[4] & 0x3f);
 
     /* From the bsi() frame. See A52 Table 5.2 */
     atsc_ac3_ctx->bsid = frame[5] >> 3;

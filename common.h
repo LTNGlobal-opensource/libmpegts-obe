@@ -35,6 +35,7 @@
 /* Standardised Audio/Video stream_types */
 #define VIDEO_MPEG2       0x02
 #define VIDEO_AVC         0x1b
+#define VIDEO_HEVC        0x24
 
 #define AUDIO_MPEG1       0x03
 #define AUDIO_MPEG2       0x04
@@ -98,7 +99,7 @@
 #define MIN(a,b) ( (a)<(b) ? (a) : (b) )
 #define MAX(a,b) ( (a)>(b) ? (a) : (b) )
 
-#define IS_VIDEO(x) ( x->stream_format == LIBMPEGTS_VIDEO_MPEG2 || x->stream_format == LIBMPEGTS_VIDEO_AVC )
+#define IS_VIDEO(x) ((x)->stream_format == LIBMPEGTS_VIDEO_MPEG2 || (x)->stream_format == LIBMPEGTS_VIDEO_AVC || (x)->stream_format == LIBMPEGTS_VIDEO_HEVC)
 
 /* Internal Program & Stream Structures */
 typedef struct

@@ -30,10 +30,11 @@
 #include <math.h>
 #include <time.h>
 
-static const int steam_type_table[27][2] =
+static const int steam_type_table[][2] =
 {
     { LIBMPEGTS_VIDEO_MPEG2, VIDEO_MPEG2 },
     { LIBMPEGTS_VIDEO_AVC,   VIDEO_AVC },
+    { LIBMPEGTS_VIDEO_HEVC,  VIDEO_HEVC },
     { LIBMPEGTS_AUDIO_MPEG1, AUDIO_MPEG1 },
     { LIBMPEGTS_AUDIO_MPEG2, AUDIO_MPEG2 },
     { LIBMPEGTS_AUDIO_ADTS,  AUDIO_ADTS },
@@ -540,6 +541,9 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
              if( w->ts_type == TS_TYPE_BLU_RAY )
                  write_hdmv_video_registration_descriptor( &q, stream );
          }
+         else if (stream->stream_format == LIBMPEGTS_VIDEO_HEVC) {
+             /* Any specific HEVC descriptors require? */
+         }
          else if( stream->stream_format == LIBMPEGTS_VIDEO_AVC )
          {
              write_avc_descriptor( &q, program, stream );
@@ -834,7 +838,7 @@ static int write_pes( ts_writer_t *w, ts_int_program_t *program, ts_frame_t *in_
     bs_flush( &q );
     total_size = in_frame->size + (bs_pos( &q ) >> 3);
 
-    if( stream->stream_format == LIBMPEGTS_VIDEO_MPEG2 || stream->stream_format == LIBMPEGTS_VIDEO_AVC )
+    if( stream->stream_format == LIBMPEGTS_VIDEO_MPEG2 || stream->stream_format == LIBMPEGTS_VIDEO_AVC || stream->stream_format == LIBMPEGTS_VIDEO_HEVC )
         bs_write( &s, 16, 0 );          // PES_packet_length
     else
         bs_write( &s, 16, total_size ); // PES_packet_length
@@ -872,6 +876,7 @@ static int check_bitstream( ts_writer_t *w )
 {
     if( w->out.bs.p_end - w->out.bs.p < 18800 )
     {
+printf("%s() growing\n", __func__);
         bs_flush( &w->out.bs );
         uint8_t *bs_bak = w->out.p_bitstream;
         w->out.i_bitstream += 100000;
@@ -990,7 +995,7 @@ int ts_setup_transport_stream( ts_writer_t *w, ts_main_t *params )
     {
         ts_stream_t *stream_in = &params->programs[0].streams[i];
 
-        if( stream_in->stream_format == LIBMPEGTS_VIDEO_MPEG2 || stream_in->stream_format == LIBMPEGTS_VIDEO_AVC )
+        if( stream_in->stream_format == LIBMPEGTS_VIDEO_MPEG2 || stream_in->stream_format == LIBMPEGTS_VIDEO_AVC || stream_in->stream_format == LIBMPEGTS_VIDEO_HEVC )
         {
             if( !video_stream )
                 video_stream = 1;
@@ -1110,6 +1115,7 @@ int ts_setup_transport_stream( ts_writer_t *w, ts_main_t *params )
     // FIXME realloc if necessary
 
     w->out.i_bitstream = w->ts_muxrate >> 3;
+printf("w->ts_muxrate %d\n", w->out.i_bitstream);
     w->out.p_bitstream = calloc( 1, w->out.i_bitstream );
 
     if( !w->out.p_bitstream )
@@ -1138,9 +1144,9 @@ int ts_setup_mpegvideo_stream( ts_writer_t *w, int pid, int level, int profile, 
         return -1;
     }
 
-    if( !( stream->stream_format == LIBMPEGTS_VIDEO_MPEG2 || stream->stream_format == LIBMPEGTS_VIDEO_AVC ) )
+    if( !( stream->stream_format == LIBMPEGTS_VIDEO_MPEG2 || stream->stream_format == LIBMPEGTS_VIDEO_AVC || stream->stream_format == LIBMPEGTS_VIDEO_HEVC ) )
     {
-        fprintf( stderr, "PID is not an MPEG video stream\n" );
+        fprintf( stderr, "PID is not an MPEG, AVC or HEVC video stream\n" );
         return -1;
     }
 
@@ -1172,6 +1178,7 @@ int ts_setup_mpegvideo_stream( ts_writer_t *w, int pid, int level, int profile, 
     }
     else if( stream->stream_format == LIBMPEGTS_VIDEO_AVC )
     {
+        /* For a given level_idc, lookup a bitrate (max bitrate (kbit/sec) and cbp (max vbv buffer (kbit)) */
         for( int i = 0; avc_levels[i].level_idc != 0; i++ )
             if( level == avc_levels[i].level_idc )
             {
@@ -1189,6 +1196,13 @@ int ts_setup_mpegvideo_stream( ts_writer_t *w, int pid, int level, int profile, 
             fprintf( stderr, "Invalid AVC Profile\n" );
             return -1;
         }
+    }
+    else if (stream->stream_format == LIBMPEGTS_VIDEO_HEVC) {
+printf("level_idx is %d\n", level_idx);
+printf("profile   is %d\n", profile);
+printf("%s:%s() workaround #1\n", __FILE__, __func__);
+level_idx = 10;
+profile = 2; // AVC_BASELINE;
     }
 
     if( !stream->mpegvideo_ctx )
@@ -1232,6 +1246,29 @@ int ts_setup_mpegvideo_stream( ts_writer_t *w, int pid, int level, int profile, 
 
         stream->mb.buf_size = bs_mux + bs_oh;
         stream->eb.buf_size = avc_levels[level_idx].cpb * factor;
+
+printf("AVC factor %d\n", factor);
+printf("AVC bitrate %d\n", bitrate);
+printf("AVC bs_mux %d\n", bs_mux);
+printf("AVC bs_oh %d\n", bs_oh);
+
+        stream->rx = bitrate;
+        stream->rbx = bitrate;
+    }
+    else if (stream->stream_format == LIBMPEGTS_VIDEO_HEVC)
+    {
+        int factor = (float)nal_factor[stream->mpegvideo_ctx->profile] * 1.2;
+        int bitrate = avc_levels[level_idx].bitrate * factor;
+        bs_mux = 0.004 * MAX( bitrate, 2000000 );
+        bs_oh = 1.0 * MAX( bitrate, 2000000 )/750.0;
+
+        stream->mb.buf_size = bs_mux + bs_oh;
+        stream->eb.buf_size = avc_levels[level_idx].cpb * factor;
+
+printf("HEVC factor %d\n", factor);
+printf("HEVC bitrate %d\n", bitrate);
+printf("HEVC bs_mux %d\n", bs_mux);
+printf("HEVC bs_oh %d\n", bs_oh);
 
         stream->rx = bitrate;
         stream->rbx = bitrate;
@@ -1559,15 +1596,15 @@ for (int z = 0; z < num_frames; z++) {
   if ((frames + z)->pid == 0x32)
     diff = (frames + z)->pts - last_aud;
 
-  printf("%s() pid = %x size:%8d dts:%16llu pts:%16llu (%llu) -- iat:%16llu fat:%16llu\n",
+  printf("%s() pid = %x size:%8d dts:%16" PRIi64 " pts:%16" PRIi64 " (%6" PRIi64 ") -- iat:%16" PRIi64 " fat:%16" PRIi64 "\n",
     __func__,
     (frames + z)->pid,
     (frames + z)->size,
     (frames + z)->dts,
     (frames + z)->pts,
+    diff,
     (frames + z)->cpb_initial_arrival_time,
-    (frames + z)->cpb_final_arrival_time,
-    diff);
+    (frames + z)->cpb_final_arrival_time);
 
 if ((frames + z)->pid == 0x31)
   last_vid = (frames + z)->pts;
@@ -1601,6 +1638,7 @@ if ((frames + z)->pid == 0x32)
         return -1;
     }
 
+    /* Previously queued PES frames exceeding an ideal cache size? */
     if (w->num_buffered_frames > 128) {
         /* Warning once per second. */
         static time_t last = 0, now;
@@ -1608,6 +1646,15 @@ if ((frames + z)->pid == 0x32)
         if (last != now) {
            last = now;
            fprintf(stderr, "libmpegts: %s() Warning: Having %d buffered frames is beyond normality.\n", __func__, w->num_buffered_frames);
+           queued_pes = w->buffered_frames;
+           for (int i = 0; i < w->num_buffered_frames; i++) {
+               printf("frm#%6d %s dts %" PRIi64 "  pts %" PRIi64 "  iat: %" PRIi64 "  fat: %" PRIi64 "\n", i,
+                   IS_VIDEO(queued_pes[i]->stream) ? "video" : "audio",
+                   queued_pes[i]->dts,
+                   queued_pes[i]->pts,
+                   queued_pes[i]->initial_arrival_time,
+                   queued_pes[i]->final_arrival_time);
+           }
         }
     }
 
@@ -1626,6 +1673,7 @@ if ((frames + z)->pid == 0x32)
 
     queued_pes = w->buffered_frames;
 
+    /* For each incoming coded frame.... */
     for( int i = 0; i < num_frames; i++ )
     {
         stream = find_stream( w, frames[i].pid );
@@ -1637,11 +1685,11 @@ if ((frames + z)->pid == 0x32)
         }
 
         /* Codec specific parameters */
-        if( stream->stream_format == LIBMPEGTS_VIDEO_MPEG2 || stream->stream_format == LIBMPEGTS_VIDEO_AVC )
+        if( stream->stream_format == LIBMPEGTS_VIDEO_MPEG2 || stream->stream_format == LIBMPEGTS_VIDEO_AVC || stream->stream_format == LIBMPEGTS_VIDEO_HEVC)
         {
             if( !stream->mpegvideo_ctx )
             {
-               fprintf( stderr, "MPEG video stream needs additional information. Call ts_setup_mpegvideo_stream \n" );
+               fprintf( stderr, "MPEG|AVC|HEVC video stream needs additional information. Call ts_setup_mpegvideo_stream \n" );
                return -1;
             }
             program->video_dts = frames[i].dts;
@@ -1778,6 +1826,7 @@ if ((frames + z)->pid == 0x32)
 
     cur_pcr = get_pcr_int( w, 0 );
 
+    /* For each queued PES */
     for( int i = 0; i < w->num_buffered_frames; i++ )
     {
         stream = queued_pes[i]->stream;
@@ -1854,6 +1903,15 @@ if ((frames + z)->pid == 0x32)
                     int packets_left = (queued_pes[i]->bytes_left + 183) / 184;
                     double drip_rate = (double)total_packets / ( queued_pes[i]->final_arrival_time - queued_pes[i]->initial_arrival_time );
                     double remaining_drip_rate = (double)packets_left / (queued_pes[i]->final_arrival_time - cur_pcr );
+#if LOCAL_DEBUG
+printf("final_arrival_time %" PRIi64 "\n", queued_pes[i]->final_arrival_time);
+printf("initial_arrival_time %" PRIi64 "\n", queued_pes[i]->initial_arrival_time);
+printf("                   = %" PRIi64 "\n", queued_pes[i]->final_arrival_time - queued_pes[i]->initial_arrival_time);
+printf("total_packets %d\n", total_packets);
+printf("packets_left %d\n", packets_left);
+printf("drip_rate %f\n", drip_rate);
+printf("remaining_drip_rate %f\n", remaining_drip_rate);
+#endif
 
                     if( cur_pcr >= queued_pes[i]->initial_arrival_time && stream->tb.cur_buf == 0.0 &&
                         ( drip_rate < remaining_drip_rate || queued_pes[i]->final_arrival_time < cur_pcr ) )

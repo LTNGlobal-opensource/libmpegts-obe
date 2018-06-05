@@ -1178,6 +1178,11 @@ int ts_setup_mpegvideo_stream( ts_writer_t *w, int pid, int level, int profile, 
     }
     else if( stream->stream_format == LIBMPEGTS_VIDEO_AVC )
     {
+#if 0
+// for VAAPI
+level = 40;
+profile = 2;
+#endif
         /* For a given level_idc, lookup a bitrate (max bitrate (kbit/sec) and cbp (max vbv buffer (kbit)) */
         for( int i = 0; avc_levels[i].level_idc != 0; i++ )
             if( level == avc_levels[i].level_idc )
@@ -1186,6 +1191,9 @@ int ts_setup_mpegvideo_stream( ts_writer_t *w, int pid, int level, int profile, 
                 break;
             }
 
+printf("AVC level     is %d\n", level);
+printf("AVC level_idx is %d\n", level_idx);
+printf("AVC profile   is %d\n", profile);
         if( level_idx == -1 )
         {
             fprintf( stderr, "Invalid AVC Level\n" );

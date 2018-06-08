@@ -30,6 +30,9 @@
 #include <math.h>
 #include <time.h>
 
+#define LOCAL_DEBUG 1
+#define LOCAL_EXTENSIVE_DEBUG 0
+
 static const int steam_type_table[][2] =
 {
     { LIBMPEGTS_VIDEO_MPEG2, VIDEO_MPEG2 },
@@ -1180,6 +1183,7 @@ int ts_setup_mpegvideo_stream( ts_writer_t *w, int pid, int level, int profile, 
     {
 #if 0
 // for VAAPI
+// FIX THIS IN THE VAAPI wrapper in OBE.
 level = 40;
 profile = 2;
 #endif
@@ -1191,9 +1195,11 @@ profile = 2;
                 break;
             }
 
-printf("AVC level     is %d\n", level);
-printf("AVC level_idx is %d\n", level_idx);
-printf("AVC profile   is %d\n", profile);
+#if LOCAL_DEBUG
+        printf("AVC level     is %d\n", level);
+        printf("AVC level_idx is %d\n", level_idx);
+        printf("AVC profile   is %d\n", profile);
+#endif
         if( level_idx == -1 )
         {
             fprintf( stderr, "Invalid AVC Level\n" );
@@ -1206,11 +1212,37 @@ printf("AVC profile   is %d\n", profile);
         }
     }
     else if (stream->stream_format == LIBMPEGTS_VIDEO_HEVC) {
-printf("level_idx is %d\n", level_idx);
-printf("profile   is %d\n", profile);
-printf("%s:%s() workaround #1\n", __FILE__, __func__);
-level_idx = 10;
-profile = 2; // AVC_BASELINE;
+#if 0
+        printf("level_idx is %d\n", level_idx);
+
+        printf("profile   is %d\n", profile);
+        printf("%s:%s() workaround #1\n", __FILE__, __func__);
+        level_idx = 10;
+        profile = 2; // AVC_BASELINE;
+#endif
+
+        /* For a given level_idc, lookup a bitrate (max bitrate (kbit/sec) and cbp (max vbv buffer (kbit)) */
+        for (int i = 0; i < sizeof(hevc_levels) / sizeof(hevc_level_t); i++) {
+            if (level == hevc_levels[i].level_idc) {
+                level_idx = i;
+                break;
+            }
+        }
+
+#if LOCAL_DEBUG
+        printf("HEVC level     is %d\n", level);
+        printf("HEVC level_idx is %d\n", level_idx);
+        printf("HEVC profile   is %d\n", profile);
+#endif
+
+        if (level_idx == -1) {
+            fprintf(stderr, "Invalid HEVC Level\n");
+            return -1;
+        }
+        if (profile < HEVC_PROFILE_MAIN || profile > HEVC_PROFILE_HIGH) {
+            fprintf(stderr, "Invalid HEVC Profile\n");
+            return -1;
+        }
     }
 
     if( !stream->mpegvideo_ctx )
@@ -1247,7 +1279,7 @@ profile = 2; // AVC_BASELINE;
     }
     else if( stream->stream_format == LIBMPEGTS_VIDEO_AVC )
     {
-        int factor = (float)nal_factor[stream->mpegvideo_ctx->profile] * 1.2;
+        int factor = (float)avc_nal_factor[stream->mpegvideo_ctx->profile] * 1.2;
         int bitrate = avc_levels[level_idx].bitrate * factor;
         bs_mux = 0.004 * MAX( bitrate, 2000000 );
         bs_oh = 1.0 * MAX( bitrate, 2000000 )/750.0;
@@ -1255,28 +1287,38 @@ profile = 2; // AVC_BASELINE;
         stream->mb.buf_size = bs_mux + bs_oh;
         stream->eb.buf_size = avc_levels[level_idx].cpb * factor;
 
-printf("AVC factor %d\n", factor);
-printf("AVC bitrate %d\n", bitrate);
-printf("AVC bs_mux %d\n", bs_mux);
-printf("AVC bs_oh %d\n", bs_oh);
+#if LOCAL_DEBUG
+        printf("AVC factor %d\n", factor);
+        printf("AVC bitrate %d\n", bitrate);
+        printf("AVC bs_mux %d\n", bs_mux);
+        printf("AVC bs_oh %d\n", bs_oh);
+#endif
 
         stream->rx = bitrate;
         stream->rbx = bitrate;
     }
     else if (stream->stream_format == LIBMPEGTS_VIDEO_HEVC)
     {
-        int factor = (float)nal_factor[stream->mpegvideo_ctx->profile] * 1.2;
-        int bitrate = avc_levels[level_idx].bitrate * factor;
+        int factor = (float)hevc_nal_factor[stream->mpegvideo_ctx->profile] * 1.2;
+
+        int bitrate = hevc_levels[level_idx].max_bitrate_main * factor;
+        if (profile == HEVC_PROFILE_HIGH)
+            bitrate = hevc_levels[level_idx].max_bitrate_high * factor;
+
         bs_mux = 0.004 * MAX( bitrate, 2000000 );
         bs_oh = 1.0 * MAX( bitrate, 2000000 )/750.0;
 
         stream->mb.buf_size = bs_mux + bs_oh;
-        stream->eb.buf_size = avc_levels[level_idx].cpb * factor;
+        stream->eb.buf_size = hevc_levels[level_idx].max_cpbsize_main * factor;
+        if (profile == HEVC_PROFILE_HIGH)
+        	stream->eb.buf_size = hevc_levels[level_idx].max_cpbsize_high * factor;
 
-printf("HEVC factor %d\n", factor);
-printf("HEVC bitrate %d\n", bitrate);
-printf("HEVC bs_mux %d\n", bs_mux);
-printf("HEVC bs_oh %d\n", bs_oh);
+#if LOCAL_DEBUG
+        printf("HEVC factor %d\n", factor);
+        printf("HEVC bitrate %d\n", bitrate);
+        printf("HEVC bs_mux %d\n", bs_mux);
+        printf("HEVC bs_oh %d\n", bs_oh);
+#endif
 
         stream->rx = bitrate;
         stream->rbx = bitrate;
@@ -1911,7 +1953,7 @@ if ((frames + z)->pid == 0x32)
                     int packets_left = (queued_pes[i]->bytes_left + 183) / 184;
                     double drip_rate = (double)total_packets / ( queued_pes[i]->final_arrival_time - queued_pes[i]->initial_arrival_time );
                     double remaining_drip_rate = (double)packets_left / (queued_pes[i]->final_arrival_time - cur_pcr );
-#if LOCAL_DEBUG
+#if LOCAL_EXTENSIVE_DEBUG
 printf("final_arrival_time %" PRIi64 "\n", queued_pes[i]->final_arrival_time);
 printf("initial_arrival_time %" PRIi64 "\n", queued_pes[i]->initial_arrival_time);
 printf("                   = %" PRIi64 "\n", queued_pes[i]->final_arrival_time - queued_pes[i]->initial_arrival_time);

@@ -86,7 +86,8 @@ const uint8_t avc_profiles[] =
     [AVC_CAVLC_444_INTRA] = 44,
 };
 
-const int nal_factor[] =
+/* See ISO14496-10:2014 -- Table A-2 */
+const int avc_nal_factor[] =
 {
     [AVC_BASELINE] = 1200,
     [AVC_MAIN]     = 1200,
@@ -115,6 +116,45 @@ const aac_buffer_t aac_buffers[] =
     { 12, 8294400,  12804*8 },
     { 48, 33177600, 51216*8 },
     { 0 },
+};
+
+/* See ISO23008:2014 -- Table A-6 General tier and level limits (cbp)
+ *                      Table A-7 Tier and level limits for the video profiles. (bitrate)
+ */
+typedef struct
+{
+    uint32_t level_idc;
+    uint32_t max_bitrate_main;
+    uint32_t max_bitrate_high;
+    uint32_t max_cpbsize_main;
+    uint32_t max_cpbsize_high;
+} hevc_level_t;
+
+const hevc_level_t hevc_levels[] =
+{
+    { 10,    128, UINT32_MAX,    350, UINT32_MAX, },
+    { 20,   1500, UINT32_MAX,   1500, UINT32_MAX, },
+    { 21,   3000, UINT32_MAX,   3000, UINT32_MAX, },
+    { 30,   6000, UINT32_MAX,   6000, UINT32_MAX, },
+    { 31,  10000, UINT32_MAX,  10000, UINT32_MAX, },
+    { 40,  12000,      30000,  12000,      30000, },
+    { 41,  20000,      50000,  20000,      50000, },
+    { 50,  25000,     100000,  25000,     100000, },
+    { 51,  40000,     160000,  40000,     160000, },
+    { 52,  60000,     240000,  60000,     240000, },
+    { 60,  60000,     240000,  60000,     240000, },
+    { 61, 120000,     480000, 120000,     480000, },
+    { 62, 240000,     800000, 240000,     800000, },
+};
+
+/* See ISO23008:2014 -- Table A-8 */
+/* The spec provides LOTS of factors. They're not all implemented here.
+ * I'll focus on 4:2:2 8bit main and high.
+ */
+const int hevc_nal_factor[] =
+{
+    [HEVC_PROFILE_MAIN] = 1100, /* Profile column 1 = 'main' */
+    [HEVC_PROFILE_HIGH] = 2200, /* Profile column 1 = 'High throughput 4:4:4' */
 };
 
 /* AC3 buffer sizes */

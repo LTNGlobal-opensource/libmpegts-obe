@@ -178,6 +178,13 @@ enum avc_profile_t
     AVC_CAVLC_444_INTRA,
 };
 
+/* HEVC Profiles */
+enum hevc_profile_t
+{
+    HEVC_PROFILE_MAIN,
+    HEVC_PROFILE_HIGH,
+};
+
 /* Opaque Structure */
 typedef struct ts_writer_t ts_writer_t;
 

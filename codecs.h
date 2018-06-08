@@ -46,8 +46,8 @@ const mpeg2_level_t mpeg2_levels[] =
 typedef struct
 {
     int level_idc;
-    int bitrate;     /* max bitrate (kbit/sec) */
-    int cpb;         /* max vbv buffer (kbit) */
+    int bitrate;     /* Max video bitrate (kbit/sec) */
+    int cpb;         /* Max CPB Size (kbit/sec) */
 } avc_level_t;
 
 const avc_level_t avc_levels[] =

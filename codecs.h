@@ -42,6 +42,7 @@ const mpeg2_level_t mpeg2_levels[] =
     { 0 }
 };
 
+/* See ISO14496-10:2014 -- Table A-1 Level Limits */
 typedef struct
 {
     int level_idc;
@@ -51,8 +52,8 @@ typedef struct
 
 const avc_level_t avc_levels[] =
 {
-    { 10,     64,     64 },
-    {  9,    128,    350 }, /* 1b */
+    { 10,     64,     64 }, /* level 1.0 */
+    {  9,    128,    350 }, /* level 1b */
     { 11,    192,    500 },
     { 12,    384,   1000 },
     { 13,    768,   2000 },
@@ -67,7 +68,7 @@ const avc_level_t avc_levels[] =
     { 42,  50000,  62500 },
     { 50, 135000, 135000 },
     { 51, 240000, 240000 },
-    { 52, 240000, 240000 },
+    { 52, 240000, 240000 }, /* level 5.2 */
     { 0 }
 };
 

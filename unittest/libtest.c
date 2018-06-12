@@ -2,12 +2,104 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#include <common.h>
 #include <libmpegts.h>
 
 #define PID_PMT   48
 #define PID_VIDEO 49
 #define PID_AUDIO 50
 #define PID_PCR   PID_VIDEO
+
+static int test_02(ts_writer_t *tswriter)
+{
+	uint32_t count = 0;
+	int64_t lastpcr = 0;
+	int verbose = 0;
+
+	printf("Unit: %s\n", __func__);
+
+	tswriter->serializerFH = fopen("/storage/dev/libmpegts-serializer-frames.bin", "rb");
+	while (!feof(tswriter->serializerFH)) {
+
+		ts_frame_t *frame;
+		size_t len = libmpegts_frame_serializer_read(tswriter, &frame);
+		printf("%08d: len %7d   pid %04x  pts %13" PRIi64 "  dts %13" PRIi64 "  iat: %13" PRIi64 "  fat: %13" PRIi64 "  ",
+			count,
+			len,
+			frame->pid,
+			frame->pts,
+			frame->dts,
+			frame->cpb_initial_arrival_time,
+			frame->cpb_final_arrival_time);
+
+		for (int i = 0; i < 16; i++)
+			printf("%02x ", frame->data[i]);
+		printf("\n");
+		if (len <= 0)
+			break;
+
+		uint8_t *output = NULL;
+		int tslenbytes = 0;
+		int64_t *pcr_list;
+		int ret = ts_write_frames(tswriter, frame, 1, &output, &tslenbytes, &pcr_list);
+		if (ret < 0) {
+			fprintf(stderr, "ts_write_frames failed.\n");
+			return -1;
+		}
+
+		if (verbose && tslenbytes) {
+			printf("\t%d ts packets\n", tslenbytes / 188);
+			for (int i = 0; i < tslenbytes; i += 188) {
+				printf("\t\tpcr %13" PRIi64 " (%6" PRIi64 ")  ", pcr_list[i / 188], pcr_list[i / 188] - lastpcr);
+				for (int j = 0; j < 16; j++)
+					printf("%02x ", output[i + j]);
+				printf("\n");
+				lastpcr = pcr_list[i / 188];
+			}
+		}
+
+		free(frame->data);
+		free(frame);
+		count++;
+	}
+
+	return 0;
+}
+
+static int test_01(ts_writer_t *tswriter)
+{
+	printf("Unit: %s\n", __func__);
+
+	int num_frames = 1;
+
+	ts_frame_t *f = calloc(1, sizeof(*f));
+	if (!f) {
+		fprintf(stderr, "calloc failed.\n");
+		return -1;
+	}
+
+	f->opaque                   = NULL; /* User context */
+	f->size                     = 0; // nal_length;
+	f->data                     = NULL; // nal_ptr;
+	f->pid                      = PID_VIDEO;
+	f->cpb_initial_arrival_time = 0; /* 27MHz clock */
+	f->cpb_final_arrival_time   = 0; /* 27MHz clock */
+	f->pts                      = 0; /* 90KHz clock */
+	f->dts                      = 0; /* 90KHz clock */
+	f->random_access            = 1;
+	f->priority                 = 1;
+
+	uint8_t *output = NULL;
+	int len = 0;
+	int64_t *pcr_list;
+	int ret = ts_write_frames(tswriter, f, num_frames, &output, &len, &pcr_list);
+	if (ret < 0) {
+		fprintf(stderr, "ts_write_frames failed.\n");
+		return -1;
+	}
+
+	return 0;
+}
 
 int main(int argc, char *argv[])
 {
@@ -69,6 +161,13 @@ int main(int argc, char *argv[])
 
 	if (ts_setup_mpeg4_aac_stream(tswriter, PID_AUDIO, LIBMPEGTS_MPEG4_AAC_PROFILE_LEVEL_2, 2) < 0) {
 		fprintf(stderr, "ts_setup_mpeg4_aac_stream failed.\n");
+		return -1;
+	}
+
+	//int ret = test_01(tswriter);
+	int ret = test_02(tswriter);
+	if (ret < 0) {
+		fprintf(stderr, "test failed.\n");
 		return -1;
 	}
 

@@ -1635,6 +1635,10 @@ void ts_remove_sdt( ts_writer_t *w )
 
 int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t **out, int *len, int64_t **pcr_list )
 {
+	if (w->serializerFH) {
+		libmpegts_frame_serializer_write(w, frames, num_frames);
+	}
+
 #if 0
 static uint64_t last_aud = 0;
 static uint64_t last_vid = 0;

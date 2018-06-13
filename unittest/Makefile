@@ -1,5 +1,5 @@
 
-CFLAGS  = -g --std=c99 -Wall -I..
+CFLAGS  = -g --std=c99 -Wall -I.. -D_XOPEN_SOURCE
 LDFLAGS  = -L.. -lmpegts
 
 all:	libtest

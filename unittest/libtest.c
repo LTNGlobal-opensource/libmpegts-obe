@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #include <common.h>
 #include <libmpegts.h>
@@ -10,27 +11,46 @@
 #define PID_AUDIO 50
 #define PID_PCR   PID_VIDEO
 
-static int test_02(ts_writer_t *tswriter)
+struct app_context_s
+{
+	ts_writer_t *tswriter;
+	const char *framefn;
+};
+
+static int test_02(struct app_context_s *ctx)
 {
 	uint32_t count = 0;
 	int64_t lastpcr = 0;
 	int verbose = 0;
+	int64_t last_iat[8192] = { 0 };
 
 	printf("Unit: %s\n", __func__);
 
-	tswriter->serializerFH = fopen("/storage/dev/libmpegts-serializer-frames.bin", "rb");
-	while (!feof(tswriter->serializerFH)) {
+	//tswriter->serializerFH = fopen("/storage/dev/libmpegts-serializer-frames.bin", "rb");
+	//tswriter->serializerFH = fopen("hevc-aac-1280x720p60.bin", "rb");
+	ctx->tswriter->serializerFH = fopen(ctx->framefn, "rb");
+	while (!feof(ctx->tswriter->serializerFH)) {
 
 		ts_frame_t *frame;
-		size_t len = libmpegts_frame_serializer_read(tswriter, &frame);
-		printf("%08d: len %7d   pid %04x  pts %13" PRIi64 "  dts %13" PRIi64 "  iat: %13" PRIi64 "  fat: %13" PRIi64 "  ",
+		size_t len = libmpegts_frame_serializer_read(ctx->tswriter, &frame);
+
+		int64_t iat_increment = frame->cpb_initial_arrival_time - last_iat[frame->pid];
+		last_iat[frame->pid] = frame->cpb_initial_arrival_time;
+		double estimated_final = ((double)frame->size / 0.0810186) + frame->cpb_initial_arrival_time;
+		double v = frame->size;
+		v /= (frame->cpb_final_arrival_time - frame->cpb_initial_arrival_time);
+		printf("%08d: len %7d   pid %04x  pts %13" PRIi64 "  dts %13" PRIi64 "  iat: %13" PRIi64 "  (%9" PRIi64 ")  fat: %13" PRIi64 " (%9" PRIi64 ") (%11.08f)  efat: %13" PRIi64 "  ",
 			count,
-			len,
+			frame->size,
 			frame->pid,
 			frame->pts,
 			frame->dts,
 			frame->cpb_initial_arrival_time,
-			frame->cpb_final_arrival_time);
+			iat_increment,
+			frame->cpb_final_arrival_time,
+			frame->cpb_final_arrival_time - frame->cpb_initial_arrival_time,
+			v,
+			(int64_t)estimated_final);
 
 		for (int i = 0; i < 16; i++)
 			printf("%02x ", frame->data[i]);
@@ -41,7 +61,7 @@ static int test_02(ts_writer_t *tswriter)
 		uint8_t *output = NULL;
 		int tslenbytes = 0;
 		int64_t *pcr_list;
-		int ret = ts_write_frames(tswriter, frame, 1, &output, &tslenbytes, &pcr_list);
+		int ret = ts_write_frames(ctx->tswriter, frame, 1, &output, &tslenbytes, &pcr_list);
 		if (ret < 0) {
 			fprintf(stderr, "ts_write_frames failed.\n");
 			return -1;
@@ -66,7 +86,7 @@ static int test_02(ts_writer_t *tswriter)
 	return 0;
 }
 
-static int test_01(ts_writer_t *tswriter)
+static int test_01(struct app_context_s *ctx)
 {
 	printf("Unit: %s\n", __func__);
 
@@ -92,7 +112,7 @@ static int test_01(ts_writer_t *tswriter)
 	uint8_t *output = NULL;
 	int len = 0;
 	int64_t *pcr_list;
-	int ret = ts_write_frames(tswriter, f, num_frames, &output, &len, &pcr_list);
+	int ret = ts_write_frames(ctx->tswriter, f, num_frames, &output, &len, &pcr_list);
 	if (ret < 0) {
 		fprintf(stderr, "ts_write_frames failed.\n");
 		return -1;
@@ -101,10 +121,36 @@ static int test_01(ts_writer_t *tswriter)
 	return 0;
 }
 
+static void usage(const char *progname)
+{
+	printf("%s -i <frames.bin>\n", progname);
+}
+
 int main(int argc, char *argv[])
 {
-	ts_writer_t *tswriter = ts_create_writer();
-	if (!tswriter) {
+	struct app_context_s a_context = { 0 };
+	struct app_context_s *ctx = &a_context;
+
+	int opt;
+
+	if (argc < 2) {
+		usage(argv[0]);
+		exit(1);
+	}
+
+	while ((opt = getopt(argc, argv, "hi:o:l:p:r:svA:CD:PR:S:X")) != -1) {
+		switch (opt) {
+		case 'i':
+			ctx->framefn = optarg;
+			break;
+		default:
+			usage(argv[0]);
+			exit(1);
+		}
+	}
+
+	ctx->tswriter = ts_create_writer();
+	if (!ctx->tswriter) {
 		fprintf(stderr, "ts_create_writer failed.\n");
 		return -1;
 	}
@@ -149,34 +195,34 @@ int main(int argc, char *argv[])
 	params.tdt_period = 100;
 	params.tot_period = 100;
 
-	if (ts_setup_transport_stream(tswriter, &params) < 0) {
+	if (ts_setup_transport_stream(ctx->tswriter, &params) < 0) {
 		fprintf(stderr, "ts_setup_transport_stream failed.\n");
 		return -1;
 	}
 
-	if (ts_setup_mpegvideo_stream(tswriter, PID_VIDEO, 41, AVC_MAIN, 0, 0, 0) < 0) {
+	if (ts_setup_mpegvideo_stream(ctx->tswriter, PID_VIDEO, 41, AVC_MAIN, 0, 0, 0) < 0) {
 		fprintf(stderr, "ts_setup_mpegvideo_stream failed.\n");
 		return -1;
 	}
 
-	if (ts_setup_mpeg4_aac_stream(tswriter, PID_AUDIO, LIBMPEGTS_MPEG4_AAC_PROFILE_LEVEL_2, 2) < 0) {
+	if (ts_setup_mpeg4_aac_stream(ctx->tswriter, PID_AUDIO, LIBMPEGTS_MPEG4_AAC_PROFILE_LEVEL_2, 2) < 0) {
 		fprintf(stderr, "ts_setup_mpeg4_aac_stream failed.\n");
 		return -1;
 	}
 
 	//int ret = test_01(tswriter);
-	int ret = test_02(tswriter);
+	int ret = test_02(ctx);
 	if (ret < 0) {
 		fprintf(stderr, "test failed.\n");
 		return -1;
 	}
 
-	if (ts_delete_stream(tswriter, 49) != 0) {
+	if (ts_delete_stream(ctx->tswriter, 49) != 0) {
 		fprintf(stderr, "ts_delete_stream failed.\n");
 		return -1;
 	}
 
-	if (ts_close_writer(tswriter) != 0) {
+	if (ts_close_writer(ctx->tswriter) != 0) {
 		fprintf(stderr, "ts_close_writer failed.\n");
 		return -1;
 	}

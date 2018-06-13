@@ -669,6 +669,11 @@ typedef struct
     void *opaque;
 } ts_frame_t;
 
+int    libmpegts_frame_serializer_open_write(ts_writer_t *w, const char *fn);
+void   libmpegts_frame_serializer_close(ts_writer_t *w);
+size_t libmpegts_frame_serializer_write(ts_writer_t *w, ts_frame_t *frame, uint32_t frameCount);
+size_t libmpegts_frame_serializer_read(ts_writer_t *w, ts_frame_t **frame);
+
 /* ts_write_frames
  *
  * libmpegts buffers one frame so the last set of packets can be output by setting num_frames = 0.

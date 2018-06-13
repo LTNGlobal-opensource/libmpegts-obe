@@ -2293,3 +2293,58 @@ ts_int_stream_t *find_stream( ts_writer_t *w, int pid )
     }
     return NULL;
 }
+
+void libmpegts_frame_serializer_close(ts_writer_t *w)
+{
+	if (w->serializerFH)
+		fclose(w->serializerFH);
+
+	w->serializerFH = NULL;
+}
+
+int libmpegts_frame_serializer_open_write(ts_writer_t *w, const char *fn)
+{
+	if (w->serializerFH)
+		return -1;
+
+	w->serializerFH = fopen(fn, "wb");
+
+	return w->serializerFH ? 0 : -1;
+}
+
+size_t libmpegts_frame_serializer_write(ts_writer_t *w, ts_frame_t *frame, uint32_t frameCount)
+{
+	size_t len = 0;
+	ts_frame_t *p = frame;
+	for (uint32_t i = 0; i < frameCount;i++) {
+		uint32_t framesize = sizeof(*p);
+		len += fwrite(&framesize, 1, sizeof(framesize), w->serializerFH);
+		len += fwrite(p, 1, sizeof(*p), w->serializerFH);
+		len += fwrite(p->data, 1, p->size, w->serializerFH);
+		p++;
+	}
+	return len;
+}
+
+size_t libmpegts_frame_serializer_read(ts_writer_t *w, ts_frame_t **frame)
+{
+	size_t len = 0;
+
+	uint32_t framesize = 0;
+
+	len += fread(&framesize, 1, sizeof(framesize), w->serializerFH);
+	if (framesize != sizeof(ts_frame_t)) {
+		fprintf(stderr, "%s() ts_frame_t size doesn't match file record.\n", __func__);
+		return 0;
+	}
+
+	ts_frame_t *f = malloc(sizeof(*f));
+	len += fread(f, 1, sizeof(*f), w->serializerFH);
+	
+	f->data = malloc(f->size);
+	len += fread(f->data, 1, f->size, w->serializerFH);
+
+	*frame = f;
+
+	return len;
+}

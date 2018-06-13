@@ -1780,6 +1780,7 @@ if ((frames + z)->pid == 0x32)
         new_pes[i] = calloc( 1, sizeof(ts_int_pes_t) );
         if( !new_pes[i] )
         {
+           /* All the previous allocations leaked. */
            fprintf( stderr, "Malloc failed\n" );
            return -1;
         }
@@ -1833,6 +1834,7 @@ if ((frames + z)->pid == 0x32)
         new_pes[i]->data = malloc( frames[i].size + 512 );
         if( !new_pes[i]->data )
         {
+           /* ALl the previous new_pes[0...X] leaked. */
            fprintf( stderr, "Malloc failed\n" );
            return -1;
         }
@@ -1853,6 +1855,7 @@ if ((frames + z)->pid == 0x32)
 
     if( !initial_queued_pes )
     {
+        /* Did we just leak new_pes? */
         out = NULL;
         *len = 0;
         *pcr_list = NULL;

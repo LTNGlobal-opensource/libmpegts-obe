@@ -352,6 +352,8 @@ struct ts_writer_t
     uint64_t last_sit;
 
     ts_dtcp_t *dtcp_ctx;
+
+    FILE *serializerFH;
 };
 
 enum adaptation_field_control_e

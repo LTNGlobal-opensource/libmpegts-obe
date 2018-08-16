@@ -1633,8 +1633,56 @@ void ts_remove_sdt( ts_writer_t *w )
     w->sdt = NULL;
 }
 
+void ts_show_queues(ts_writer_t *w)
+{
+    w->dump_buffered_frames = 1;
+}
+
+static void _dump_buffered_frames(ts_writer_t *w)
+{
+	printf("libmpegts:\n");
+	printf("  w->num_buffered_frames = %d\n", w->num_buffered_frames);
+
+	int64_t pts_lwm = 0, pts_hwm = 0;
+	int64_t dts_lwm = 0, dts_hwm = 0;
+	ts_int_pes_t *p;
+	for (int i = 0; i < w->num_buffered_frames; i++) {
+		p = w->buffered_frames[i];
+
+		/* PTS */
+		if (pts_lwm == 0)
+			pts_lwm = p->pts;
+		else
+		if (pts_lwm > p->pts)
+			pts_lwm = p->pts;
+		if (pts_hwm < p->pts)
+			pts_hwm = p->pts;
+
+		/* DTS */
+		if (dts_lwm == 0)
+			dts_lwm = p->dts;
+		else
+		if (dts_lwm > p->dts)
+			dts_lwm = p->dts;
+		if (dts_hwm < p->dts)
+			dts_hwm = p->dts;
+	}
+	printf("  PTS from %" PRIi64 " to %" PRIi64 " = %" PRIi64 " ticks or %" PRIi64 "ms\n",
+		pts_lwm, pts_hwm, pts_hwm - pts_lwm,
+		(pts_hwm - pts_lwm) / 90);
+	printf("  DTS from %" PRIi64 " to %" PRIi64 " = %" PRIi64 " ticks or %" PRIi64 "ms\n",
+		dts_lwm, dts_hwm, dts_hwm - dts_lwm,
+		(dts_hwm - dts_lwm) / 90);
+
+}
+
 int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t **out, int *len, int64_t **pcr_list )
 {
+	if (w->dump_buffered_frames) {
+		w->dump_buffered_frames = 0;
+		_dump_buffered_frames(w);
+	}
+
 	if (w->serializerFH) {
 		libmpegts_frame_serializer_write(w, frames, num_frames);
 	}

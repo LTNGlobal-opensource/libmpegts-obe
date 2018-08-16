@@ -319,6 +319,7 @@ struct ts_writer_t
     int network_pid;
     int network_id;
 
+    int dump_buffered_frames;
     int num_buffered_frames;
     ts_int_pes_t **buffered_frames;
 

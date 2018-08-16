@@ -694,4 +694,6 @@ int ts_delete_stream( ts_writer_t *w, int pid );
 
 int ts_close_writer( ts_writer_t *w );
 
+void ts_show_queues(ts_writer_t *w);
+
 #endif

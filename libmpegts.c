@@ -879,7 +879,6 @@ static int check_bitstream( ts_writer_t *w )
 {
     if( w->out.bs.p_end - w->out.bs.p < 18800 )
     {
-printf("%s() growing\n", __func__);
         bs_flush( &w->out.bs );
         uint8_t *bs_bak = w->out.p_bitstream;
         w->out.i_bitstream += 100000;
@@ -1118,7 +1117,6 @@ int ts_setup_transport_stream( ts_writer_t *w, ts_main_t *params )
     // FIXME realloc if necessary
 
     w->out.i_bitstream = w->ts_muxrate >> 3;
-printf("w->ts_muxrate %d\n", w->out.i_bitstream);
     w->out.p_bitstream = calloc( 1, w->out.i_bitstream );
 
     if( !w->out.p_bitstream )

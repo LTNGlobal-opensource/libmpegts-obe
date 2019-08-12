@@ -429,7 +429,7 @@ static int eject_queued_pmt( ts_writer_t *w, ts_int_program_t *program, bs_t *s 
     temp = realloc( program->pmt_packets, (program->num_queued_pmt-1) * sizeof(uint8_t*) );
     if( !temp )
     {
-        fprintf( stderr, "malloc failed\n" );
+        fprintf( stderr, "%s() malloc failed\n", __func__);
         return -1;
     }
     program->pmt_packets = temp;
@@ -646,7 +646,7 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
         temp2 = realloc( program->pmt_packets, (program->num_queued_pmt + 1) * sizeof(uint8_t*));
         if( !temp2 )
         {
-            fprintf( stderr, "malloc failed" );
+            fprintf( stderr, "%s() malloc failed", __func__);
             return -1;
         }
         program->pmt_packets = temp2;
@@ -654,7 +654,7 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
         program->pmt_packets[program->num_queued_pmt] = malloc( TS_PACKET_SIZE );
         if( !program->pmt_packets[program->num_queued_pmt] )
         {
-            fprintf( stderr, "malloc failed" );
+            fprintf( stderr, "%s() malloc failed", __func__);
             return -1;
         }
 
@@ -1618,7 +1618,7 @@ int ts_setup_sdt( ts_writer_t *w )
     w->sdt = calloc( 1, sizeof(*w->sdt) );
     if( !w->sdt )
     {
-        fprintf( stderr, "malloc failed\n" );
+        fprintf( stderr, "%s() malloc failed\n", __func__);
         return -1;
     }
 

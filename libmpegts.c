@@ -442,20 +442,15 @@ static int write_pat( ts_writer_t *w )
 
 static int eject_queued_pmt( ts_writer_t *w, ts_int_program_t *program, bs_t *s )
 {
-    uint8_t **temp;
-
     write_bytes( s, program->pmt_packets[0], TS_PACKET_SIZE );
+    free(program->pmt_packets[0]);
+    program->pmt_packets[0] = NULL;
 
     if( program->num_queued_pmt > 1 )
         memmove( &program->pmt_packets[0], &program->pmt_packets[1], (program->num_queued_pmt-1) * sizeof(uint8_t*) );
 
-    temp = realloc( program->pmt_packets, (program->num_queued_pmt-1) * sizeof(uint8_t*) );
-    if( !temp )
-    {
-        fprintf( stderr, "%s() malloc failed\n", __func__);
-        return -1;
-    }
-    program->pmt_packets = temp;
+    /* Failure to realloc leads to a free, this is safe in all cases. */
+    program->pmt_packets = realloc( program->pmt_packets, (program->num_queued_pmt-1) * sizeof(uint8_t*) );
 
     program->num_queued_pmt--;
 

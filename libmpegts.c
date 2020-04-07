@@ -68,6 +68,29 @@ static const int steam_type_table[][2] =
 
 /**** Descriptors ****/
 /** MPEG-2 Systems Descriptors **/
+/* LTN User Defined Descriptor - Encoder S/W Version */
+void write_user_defined_descriptor(ts_writer_t *w, bs_t *s)
+{
+    int len = 0;
+
+    if (w->ve_sw_major || w->ve_sw_minor || w->ve_sw_patch)
+        len += 4;
+
+    if (len == 0)
+        return;
+
+    bs_write(s, 8, 0xa2); // descriptor_tag
+    bs_write(s, 8, len);  // descriptor_length
+
+    if (w->ve_sw_major || w->ve_sw_minor || w->ve_sw_patch) {
+        // Type: 1, 3 byte field. Video Encoder s/w version major.minor.patch.
+        bs_write(s, 8, 0x01);
+        bs_write(s, 8, w->ve_sw_major);
+        bs_write(s, 8, w->ve_sw_minor);
+        bs_write(s, 8, w->ve_sw_patch);
+    }
+}
+
 /* Registration Descriptor */
 void write_cue_registration_descriptor(bs_t *s)
 {
@@ -501,6 +524,7 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
 
     /* Optional descriptor(s) here */
     write_cue_registration_descriptor(&q);
+    write_user_defined_descriptor(w, &q);
 
     bs_flush( &q );
     bs_write( &p, 12, bs_pos( &q ) >> 3 );   // program_info_length
@@ -2398,3 +2422,11 @@ size_t libmpegts_frame_serializer_read(ts_writer_t *w, ts_frame_t **frame)
 
 	return len;
 }
+
+void ts_set_ve_version(ts_writer_t *w, uint8_t major, uint8_t minor, uint8_t patch)
+{
+	w->ve_sw_major = major;
+	w->ve_sw_minor = minor;
+	w->ve_sw_patch = patch;
+}
+

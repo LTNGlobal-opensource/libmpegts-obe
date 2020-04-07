@@ -355,6 +355,11 @@ struct ts_writer_t
     ts_dtcp_t *dtcp_ctx;
 
     FILE *serializerFH;
+
+    /* video encoder s/w version, in hex */
+    uint8_t ve_sw_major;
+    uint8_t ve_sw_minor;
+    uint8_t ve_sw_patch;
 };
 
 enum adaptation_field_control_e

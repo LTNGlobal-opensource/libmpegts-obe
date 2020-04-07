@@ -696,4 +696,6 @@ int ts_close_writer( ts_writer_t *w );
 
 void ts_show_queues(ts_writer_t *w);
 
+void ts_set_ve_version(ts_writer_t *w, uint8_t major, uint8_t minor, uint8_t patch);
+
 #endif

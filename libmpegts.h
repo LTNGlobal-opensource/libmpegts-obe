@@ -683,7 +683,7 @@ size_t libmpegts_frame_serializer_read(ts_writer_t *w, ts_frame_t **frame);
  *
  */
 
-int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t **out, int *len, int64_t **pcr_list );
+int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t **out, int *len, int64_t **pcr_list, int64_t *dtstotal);
 
 /* INACTIVE
  *

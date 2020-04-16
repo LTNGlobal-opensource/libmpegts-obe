@@ -1693,8 +1693,47 @@ static void _dump_buffered_frames(ts_writer_t *w)
 
 }
 
-int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t **out, int *len, int64_t **pcr_list )
+static int64_t ts_writer_query_cached_dts_range(ts_writer_t *w)
 {
+	int64_t pts_lwm = 0, pts_hwm = 0;
+	int64_t dts_lwm = 0, dts_hwm = 0;
+	ts_int_pes_t *p;
+	for (int i = 0; i < w->num_buffered_frames; i++) {
+		p = w->buffered_frames[i];
+
+		/* PTS */
+		if (pts_lwm == 0)
+			pts_lwm = p->pts;
+		else
+		if (pts_lwm > p->pts)
+			pts_lwm = p->pts;
+		if (pts_hwm < p->pts)
+			pts_hwm = p->pts;
+
+		/* DTS */
+		if (dts_lwm == 0)
+			dts_lwm = p->dts;
+		else
+		if (dts_lwm > p->dts)
+			dts_lwm = p->dts;
+		if (dts_hwm < p->dts)
+			dts_hwm = p->dts;
+	}
+#if 0
+	printf("  PTS from %" PRIi64 " to %" PRIi64 " = %" PRIi64 " ticks or %" PRIi64 "ms\n",
+		pts_lwm, pts_hwm, pts_hwm - pts_lwm,
+		(pts_hwm - pts_lwm) / 90);
+	printf("  DTS from %" PRIi64 " to %" PRIi64 " = %" PRIi64 " ticks or %" PRIi64 "ms\n",
+		dts_lwm, dts_hwm, dts_hwm - dts_lwm,
+		(dts_hwm - dts_lwm) / 90);
+#endif
+	return (dts_hwm - dts_lwm) / 90;
+}
+
+int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t **out, int *len, int64_t **pcr_list, int64_t *dtstotal)
+{
+	*dtstotal = ts_writer_query_cached_dts_range(w); 
+
 	if (w->dump_buffered_frames) {
 		w->dump_buffered_frames = 0;
 		_dump_buffered_frames(w);

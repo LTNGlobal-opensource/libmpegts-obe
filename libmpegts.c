@@ -2072,6 +2072,14 @@ printf("total_packets %d\n", total_packets);
 printf("packets_left %d\n", packets_left);
 printf("drip_rate %f\n", drip_rate);
 printf("remaining_drip_rate %f\n", remaining_drip_rate);
+printf("tb.cur_buf %f\n", stream->tb.cur_buf);
+printf("cur_pcr %" PRIi64 "\n", cur_pcr);
+
+                    if (cur_pcr >= queued_pes[i]->initial_arrival_time) printf("1 "); else printf("0 ");
+                    if (stream->tb.cur_buf == 0.0) printf("1 "); else printf("0 ");
+                    if (drip_rate < remaining_drip_rate) printf("1 "); else printf("0 ");
+                    if (queued_pes[i]->final_arrival_time < cur_pcr ) printf("1 "); else printf("0 ");
+                    printf("\n");
 #endif
 
                     if( cur_pcr >= queued_pes[i]->initial_arrival_time && stream->tb.cur_buf == 0.0 &&

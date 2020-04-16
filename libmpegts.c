@@ -2083,7 +2083,7 @@ printf("cur_pcr %" PRIi64 "\n", cur_pcr);
 #endif
 
                     if( cur_pcr >= queued_pes[i]->initial_arrival_time && stream->tb.cur_buf == 0.0 &&
-                        ( drip_rate < remaining_drip_rate || queued_pes[i]->final_arrival_time < cur_pcr ) )
+                        ( drip_rate < remaining_drip_rate || queued_pes[i]->final_arrival_time < cur_pcr || queued_pes[i]->bytes_left < queued_pes[i]->size))
                     {
                         pes = queued_pes[i];
                         break;

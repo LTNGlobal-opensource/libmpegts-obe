@@ -32,7 +32,8 @@ printf("\n");
 
     /* from the syncframe() frame. See A52 Table 5.1 */
     atsc_ac3_ctx->sample_rate_code = frame[4] >> 6;
-    atsc_ac3_ctx->bit_rate_code = frame[4] & 0x3f;
+    /* Drop the right most bit for a correct convert. */
+    atsc_ac3_ctx->bit_rate_code = (frame[4] & 0x3f) >> 1;
 
     /* From the bsi() frame. See A52 Table 5.2 */
     atsc_ac3_ctx->bsid = frame[5] >> 3;

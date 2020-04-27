@@ -61,6 +61,15 @@ printf("\n");
  */
 void write_atsc_ac3_descriptor( bs_t *s, ts_atsc_ac3_info *atsc_ac3_ctx )
 {
+#if 0
+printf("%s() atsc_ac3_ctx dump\n", __func__);
+printf(" sample_rate_code %d\n", atsc_ac3_ctx->sample_rate_code);
+printf(" bit_rate_code 0x%x\n", atsc_ac3_ctx->bit_rate_code);
+printf(" surround_mode 0x%x\n", atsc_ac3_ctx->surround_mode);
+printf(" bsmod 0x%x\n", atsc_ac3_ctx->bsmod);
+printf(" num_channels %d\n", atsc_ac3_ctx->num_channels);
+printf(" full_svc %d\n", atsc_ac3_ctx->full_svc);
+#endif
     bs_write( s, 8, ATSC_AC3_DESCRIPTOR_TAG ); // descriptor_tag
     if (atsc_ac3_ctx->num_channels == 0)
         bs_write( s, 8, 8 ); // descriptor_length

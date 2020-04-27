@@ -77,7 +77,8 @@ void write_atsc_ac3_descriptor( bs_t *s, ts_atsc_ac3_info *atsc_ac3_ctx )
         bs_write( s, 8, atsc_ac3_ctx->langcod2);
     if (atsc_ac3_ctx->bsmod < 2) {
         bs_write( s, 8, 0x37); /* mainid = 1, priority = 1, reserved. */
-    }
+    } else
+        bs_write( s, 8, 0xff); /* Associate all channels with main. */
 
     bs_write( s, 8, 0x01); /* txtlen = 0, encoded = ISO8859-1. */
     bs_write( s, 8, 0x3f); /* language_flag / flag_2 = 0, reserved. */

@@ -301,7 +301,7 @@ struct ts_writer_t
     int ts_id;
 
     int cbr;
-    int ts_muxrate;
+    int ts_muxrate; /* bps */
 
     int pat_cc;
     int section_cc;

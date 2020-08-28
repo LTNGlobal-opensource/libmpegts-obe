@@ -317,7 +317,7 @@ typedef struct ts_main_t
     ts_program_t *programs;
 
     int ts_id;
-    int muxrate;
+    int muxrate; /* bps */
     int cbr;
     int ts_type;
 
@@ -653,10 +653,10 @@ typedef struct
     uint8_t *data;
     int size;
     int pid;
-    int64_t cpb_initial_arrival_time;
-    int64_t cpb_final_arrival_time;
-    int64_t dts;
-    int64_t pts;
+    int64_t cpb_initial_arrival_time; /* 27MHz - Used with video codecs only */
+    int64_t cpb_final_arrival_time; /* 27MHz - Used with video codecs only */
+    int64_t dts; /* 90kHz */
+    int64_t pts; /* 90kHz */
     int random_access;
     int priority;
 

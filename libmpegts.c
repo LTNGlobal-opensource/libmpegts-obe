@@ -18,6 +18,237 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02111, USA.
  *****************************************************************************/
 
+/* Discussion of Overall Design, Rationale and usage.
+ * (c) steven.toth@ltnglobal.com -- LTN Global Communications, 2020.
+ *
+ * Usage:
+ *
+ *   // Allocate a library context
+ *   ts_writer_t *w = ts_create_writer();
+ *
+ *   // 
+ *   ts_program_t program = {0};
+ *   program.num_streams = mux_params->num_output_streams;
+ *   program.streams = calloc(program.num_streams, sizeof(*program.streams));
+ *   // Configure various output stream properties
+ *   program.streams[0]->stream_format = LIBMPEGTS_VIDEO_AVC;
+ *   // ....
+ *
+ *   // Allocate and initialize the usage parameters
+ *   ts_main_t params = { 0 };
+ *   params.num_programs = 1;
+ *   params.programs = &program;
+ *   params.muxrate = 20000000; // bps
+ *   params.cbr = 1;
+ *   params.pat_period = 50;
+ *   // ....
+ *
+ *   // Configure the library with the params
+ *   ts_setup_transport_stream(w, &params);
+ *
+ *   // Configure various elementary stream attributes
+ *   // Design wise, I'm not actually sure why this isn't folded into the program and program.stream structs.
+ *   ts_setup_mpegvideo_stream(w, stream->pid, 40, AVC_HIGH, 0, 0, 0);
+ *   ts_setup_mpeg4_aac_stream(w, stream->pid, profile_and_level, num_channels);
+ *
+ *   while (1) {
+ *
+ *     int num_frames = <1..X>
+ *
+ *     // Get some elementary stream codec data from our upstream codecs, package
+ *     // it into library ts_frame_t structs.
+ *     ts_frame_t *frames = calloc(num_frames, sizeof(*frames));
+ *     for (i = 0; i < num_frames; i++) {
+ *       frames[i].size = <size of codec data in bytes>
+ *       frames[i].data = ptr to codec data
+ *       frames[i].pid = transport pid this codec is contained in
+ *       frames[i].opaque = <private user context>
+ *       frames[i].priority = value
+ *       frames[i].random_access = value
+ *
+ *       if (codec data == VIDEO) {
+ *         // initial/final arrival time of picture in the decoders Coded Picture Buffer (CPB)
+ *         frames[i].cpb_initial_arrival_time = value; /* 27MHz */
+ *         frames[i].cpb_final_arrival_time = value; /* 27MHz */
+ *       }
+ *       frames[i].dts = 90kHz clock value;
+ *       frames[i].pts = 90kHz clock value;
+ *
+ *     }
+ *
+ *     // Write the frames into the library, output is a series of TS packets and pcrs
+ *     uint8_t *output; // Pointer to a series of transport packets
+ *     int len; // Numbers of bytes returned (Typicaly N * 188)
+ *     int64_t *pcr_list; // Array of int64_t pointers, one pointer per TS packet returned in output.
+ *     ts_write_frames(w, frames, num_frames, &output, &len, &pcr_list, &g_mux_dtstotal);
+ *
+ *     // Do something useful with all of the transport packets.
+ *     my_packet_hander_func(output, len / 188);
+ *   }
+ *
+ *   // Free / close / release the library
+ *   ts_close_writer(w);
+ *
+ *
+ * Design:
+ *
+ * The library does not contain any threads, does not have any concept of "realtime".
+ * The library is able to run significantly faster than realtime, for example, if the
+ * input data ts_write_frames() has been previously prepared and pushed from disk.
+ * The library is not threadsafe, so a single application should only call the library
+ * from a single thread.
+ * The library is not naturally multi-instance save, although it strives to be, so
+ * don't assuming multiple muxers inside the same process space.
+ *
+ * The output bitrate from the library (via ts_write_frames(&output)) can and will vary
+ * from the requested params.muxrate (bps) significantly with respect to the wallclock,
+ * if the input data is fed faster (higher bitrate output) or slower (lower bitrate output).
+ * A good demonstration of this, is the OBE Encoder, when running slower than realtime
+ * with excessive video codec requirements, feeds this library slower than realtime
+ * and thus the ts_write_frames(&output) is measurable less (by the wallclock) than
+ * our desired muxrate.
+ *
+ * The fundamental unit of business is the ts_frame_t *frames array of frames.
+ * video/audio codecs upstream of this library compress content into elementary streams
+ * (H264 NALS or AC3 frames for example). This codec data is passed by reference
+ * into frame objects and handed to the ts_write_frames for queuing and subsequent
+ * conversion into transport packets, handed back to the caller at some later time
+ * (see &output). Input codec data is wrapped into its OWN PES by the library, so
+ * do not assume implementations can split NALS into multiple PES's (illegal anyway).
+ *
+ * frames contain multiple timestamps (pts/dts) and clocks (cpb initial/final).
+ * The muxer library will adjust
+ * some of these clocks (adding 10 seconds to PTS values for example), so don't be
+ * too shocked to see curious pts times inside any resulting transport packets.
+ * The reason for this is unclear.
+ *
+ * the ts_write_frames function (approximately 530 lines of code) iterates
+ * over every input frame, making various decisions what to do. Some activities
+ * are directly related to the video data, others audio, others ubtitles etc.
+ * Unrelated to the audio/video/subtitles codec data, this function will also
+ * insert PAT/PMT/SDT/Null-Padding, table descriptors and other 'metadata' that form
+ * the essentialy syntax of the ISO13818-1 specification.
+ *
+ * So why does the audio / video data provided in the current call to ts_write_frames
+ * not get packetized immediately into transport packets for output? The answer is
+ * clock timing and the assumption that the input data into the muxing library is
+ * generally bursty (by design) but stable over reliable over a significantly longer
+ * timeframe.
+ *
+ * For example: it's perfectly reasonable to allow a video codec to spend the following
+ * times compressing video at 60fps. Each frame needs to compress within 16.67 ms,
+ * but as long as the trend is generally less than 1 second for all 60 frames, the
+ * stream is considered mildly bursty into the muxer, and the muxer must cater for this.
+ *
+ * Here's a visual example of what the muxer has to accept as value input, for three
+ * simplistic video frames.
+
+ *  VIN  - Wallclock time frame went into the video codec (ms)
+ *  VOUT - Wallclock time frame came out of the video codec (ms)
+ *  PTS  - PTS value assigned to the compressed frame (by the codec 90kHz)
+ *  DTS  - PTS value assigned to the compressed frame (by the codec 90kHz)
+ *
+ *  VIN - VOUT --- PTS --- DTS -- Comment
+ *    0     39       0       0    Frame took significantly longer than 16ms to compress
+ *   16     43    1501    1501    But this is ok because the two following frames took
+ *   32     45    3003    3003    4ms and 2ms each, so the next time to compress three frames
+ *                                lasting 3 * 16ms (48ms) was (39 + 4 + 2) (45ms), the stream
+ *                                on the whole is running realtime or marginally faster, with
+ *                                respect to compression, but a little bursty when you consider
+ *                                the times the VOUT compressed content was delivered.
+ *
+ * This muxer has to deal with this variability in codec bursting.
+ *
+ * SO what happens if the codec runs less than realtime significantly? The muxer receives
+ * the calls to ts_write_frames slower than we'd like (relative to the wallclock), the output
+ * from the muxer is syntactially perfect and correct, but arrives slower than realtime,
+ * becaue it's being handed ts_write_frames() calls slower than realtime (due to the video compresion)
+ * taking longer than desired.
+ *
+ * In cases where the library is being used "offline" for example in a file based transcoder, this
+ * would not be a concern, because the output "bits per second" with regards to actual walltime
+ * are not going to be constant, but the underlying file (presumably) stored on disk will have perfect
+ * structures, clocks and PCR timing. The output from ts_write_frames will be bursty but reliable.
+ *
+ * In cases where the library is being used in a reealtime encoder, or a realtime transcoder for example,
+ * where the goal is to have a fixed bitrate (say, 20mbps), a video compression codec that's significantly
+ * less than realtime with result in measurable bitrate variations in the results of ts_frames_write().
+ *
+ *
+ * The implementation of ts_write_frames()
+ *
+ * for each input frame
+ * do
+ *   ts_int_pes_t *x = calloc();
+ *   // Add the input frame to an internal array
+ *   w->buffered_frames.append(x);
+ * done
+ *
+ * for each input frame
+ * do
+ *   allocate a ts_int_pes_t **new_pes object.
+ *   Clone various parameters from current frame into newpes, timing clocks, codec data, etc.
+ *   Adjust various new_pes setting, example - Adjust new_pes clocks (add 10 seconds to pts/dts, CBP initial/final)
+ *   Convert the codec/input data into PES frames, or DVBS section_tables blobs.
+ *   // At this stage the object X above contains a new_pes objects.
+ * done
+ *
+ * for each BF in w->buffer_frames
+ * do
+ *   find all video frames, check the earlist time based on cpb initial that a frame could arrive.
+ *   use this value to determine when "pcr_stop" should halt queue processing.
+ * done
+ *
+ * Calculate current_pcr as a function of 8 * ((transport packets written * 188) / muxrate), expressed as a 27MHz clock.
+ *
+ * // find all buffered frames
+ * while current_pcr < pcr_stop
+ * do
+ *   for each BF in w->buffer_frames
+ *   do
+ *     Get the new_pes, one only from this order:
+ *       PES for PSI is prioritized first.
+ *       PES for audio is prioritized second.
+ *       PES for video
+ *       else do Null packet processing.
+ *   done
+ *
+ *   // Run some match and figure out drip rates
+ *   // Take N bytes from the pes and convert it into a transport packet.
+ *
+ *   // Add ONE (or a few in the case of PSIP) transport packet to an intermediate
+ *   // output buffer, we'll hand these back to the caller when ts_write_frames() exits.
+ *   // This gets factored in when we re-compute the current pcr later.
+ *
+ *   // If new_pes is empty (we send all the bytes), do some cleanup, remove from
+ *   // w->buffer_frames etc.
+ *   recalculate current_pcr as a function of 8 * ((transport packets written * 188) / muxrate), expressed as a 27MHz clock.
+ *
+ *   Convert the intermediate packet buffer into a user array, then empty the intermediate buffer.
+ *
+ * done
+ *
+ * Fixing the output bitrate variance in less than realtime systems:
+ *
+ * So, in a realtime environment, what can we do to ensure the output muxrate is always the desired
+ * muxrate given by the caller via params.muxrate? 
+ *
+ * The LTN Encoder will only call ts_write_frames when video data has arrived on its queue.
+ * In order to maintain a stable output bitrate, the encoder must therefore call ts_write_frames()
+ * and assume that the correct amount of null padding will be inserted inorder to sustain the rate.
+ * The problem with doing this is that the code managing the queue cannot predict what the video codec
+ * is going to do, how much content it's going to deliver and when.
+ * This leads to a situation where (perhaps) the library could be told to add additional padding and
+ * PCR frames, but not have enough "bitrate" in order to provide the exact muxrate a few moments later
+ * when ts_frames_write() is called with some extensively large video frames. The result here would be
+ * and over-shoot of the muxrate.
+ *
+ * The native design today prevents and overshoot of the muxrate by slowing down the input video data
+ * and "dripping" it out over time (based on the cpb timing values), but it allows for an underflow
+ * to occur. This underflow (less than realtime) is always measureable.
+ *
+ */
+
 #include "common.h"
 #include "codecs.h"
 #include "atsc/atsc.h"

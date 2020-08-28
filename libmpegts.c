@@ -943,6 +943,7 @@ static void retransmit_psi_and_si( ts_writer_t *w, ts_int_program_t *program, in
     }
 }
 
+#if 0
 /* DVB / Blu-Ray Service Information */
 static int write_sit( ts_writer_t *w )
 {
@@ -993,6 +994,7 @@ static int write_sit( ts_writer_t *w )
 
     return 0;
 }
+#endif
 
 static void write_timestamp( bs_t *s, uint64_t timestamp )
 {

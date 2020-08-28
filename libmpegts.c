@@ -68,8 +68,8 @@
  *
  *       if (codec data == VIDEO) {
  *         // initial/final arrival time of picture in the decoders Coded Picture Buffer (CPB)
- *         frames[i].cpb_initial_arrival_time = value; /* 27MHz */
- *         frames[i].cpb_final_arrival_time = value; /* 27MHz */
+ *         frames[i].cpb_initial_arrival_time = value; // 27MHz
+ *         frames[i].cpb_final_arrival_time = value; // 27MHz
  *       }
  *       frames[i].dts = 90kHz clock value;
  *       frames[i].pts = 90kHz clock value;
@@ -1961,9 +1961,27 @@ static int64_t ts_writer_query_cached_dts_range(ts_writer_t *w)
 	return (dts_hwm - dts_lwm) / 90;
 }
 
+// MMM
 int ts_write_frames( ts_writer_t *w, ts_frame_t *frames, int num_frames, uint8_t **out, int *len, int64_t **pcr_list, int64_t *dtstotal)
 {
-	*dtstotal = ts_writer_query_cached_dts_range(w); 
+	*dtstotal = ts_writer_query_cached_dts_range(w);
+
+#if 0
+extern int obe_timeval_subtract(struct timeval *result, struct timeval *x, struct timeval *y);
+extern int64_t obe_timediff_to_msecs(struct timeval *tv);
+
+	/* Some stats to keep track of how frequently we're called. */
+	static struct timeval lastCall = { 0 };
+	struct timeval now, diff;
+	gettimeofday(&now, NULL);
+
+	obe_timeval_subtract(&diff, &now, &lastCall);
+
+	lastCall = now;
+
+	int64_t ms = obe_timediff_to_msecs(&diff);
+	printf("ms = %" PRIi64 "\n", ms);
+#endif
 
 	if (w->dump_buffered_frames) {
 		w->dump_buffered_frames = 0;

@@ -2285,6 +2285,7 @@ if ((frames + z)->pid == 0x32)
                 break;
             }
 
+            /* Audio frame processing */
             if( (!pes || queued_pes[i]->dts < pes->dts) && !IS_VIDEO( stream ) )
             {
                 int total_packets = (queued_pes[i]->size + 183) / 184;

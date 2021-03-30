@@ -360,6 +360,8 @@ struct ts_writer_t
     uint8_t ve_sw_major;
     uint8_t ve_sw_minor;
     uint8_t ve_sw_patch;
+
+    int section_padding; /* 0=adaptation, 1=packet */
 };
 
 enum adaptation_field_control_e

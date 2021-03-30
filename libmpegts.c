@@ -1008,17 +1008,42 @@ static void write_timestamp( bs_t *s, uint64_t timestamp )
     bs_write1( s, 1 );                          // marker_bit
 }
 
-static int write_table_section( ts_writer_t *w, ts_int_program_t *program, ts_frame_t *in_frame, ts_int_pes_t *out_pes, int doPointer)
+/* This function writes a fully constructed PES packet which already has PES headers */
+static int write_pes_full( ts_writer_t *w, ts_int_program_t *program, ts_frame_t *in_frame, ts_int_pes_t *out_pes, int doPointer)
 {
     bs_t s;
     int header_size;
 
     bs_init(&s, out_pes->data, in_frame->size + 200 );
+
     if (doPointer)
         bs_write(&s, 8, 0); /* Pointer */
     write_bytes(&s, in_frame->data, in_frame->size);
     header_size = bs_pos( &s ) >> 3;
     bs_flush(&s);
+
+    out_pes->size = out_pes->bytes_left = bs_pos( &s ) >> 3;
+    out_pes->cur_pos = out_pes->data;
+
+    return header_size;
+}
+
+static int write_table_section( ts_writer_t *w, ts_int_program_t *program, ts_frame_t *in_frame, ts_int_pes_t *out_pes, int doPointer)
+{
+    bs_t s;
+    int header_size;
+    int start;
+
+    bs_init(&s, out_pes->data, in_frame->size + 200 );
+    start = bs_pos (&s) - 32;
+
+    if (doPointer)
+        bs_write(&s, 8, 0); /* Pointer */
+    write_bytes(&s, in_frame->data, in_frame->size);
+    header_size = bs_pos( &s ) >> 3;
+    bs_flush(&s);
+
+    write_padding( &s, start );
 
     out_pes->size = out_pes->bytes_left = bs_pos( &s ) >> 3;
     out_pes->cur_pos = out_pes->data;
@@ -2200,13 +2225,19 @@ if ((frames + z)->pid == 0x32)
 
         if (stream->stream_format == LIBMPEGTS_ANCILLARY_2038) {
             new_pes[i]->header_size = 0;
-            new_pes[i]->header_size = write_table_section(w, program, &frames[i], new_pes[i], 0);
+            new_pes[i]->header_size = write_pes_full(w, program, &frames[i], new_pes[i], 0);
             new_pes[i]->dts = 0;
 	} else
         if (stream->stream_format == LIBMPEGTS_TABLE_SECTION) {
             new_pes[i]->header_size = 0;
             //write_section_table(w, stream->pid, frames[i].data, frames[i].size);
-            new_pes[i]->header_size = write_table_section(w, program, &frames[i], new_pes[i], 1);
+	    if (w->section_padding) {
+		    /* ISO 13818-1 compliant */
+		    new_pes[i]->header_size = write_table_section(w, program, &frames[i], new_pes[i], 1);
+	    } else {
+		    /* Legacy use of adaptation padding for table section padding */
+		    new_pes[i]->header_size = write_pes_full(w, program, &frames[i], new_pes[i], 1);
+	    }
             new_pes[i]->dts = 0;
         } else
             new_pes[i]->header_size = write_pes(w, program, &frames[i], new_pes[i]);
@@ -2723,3 +2754,7 @@ void ts_set_ve_version(ts_writer_t *w, uint8_t major, uint8_t minor, uint8_t pat
 	w->ve_sw_patch = patch;
 }
 
+void ts_set_section_padding(ts_writer_t *w, int section_padding)
+{
+	w->section_padding = section_padding;
+}

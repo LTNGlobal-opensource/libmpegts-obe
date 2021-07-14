@@ -775,8 +775,13 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
              write_data_stream_alignment_descriptor(&q);
          }
 
+#if 0
+        /* Cue identifier is 'may' output in the spec.
+         * Adtec encoders don't output it, lets' disabled for now.
+         */
          if(stream->stream_format == LIBMPEGTS_TABLE_SECTION)
              write_cue_identifier_descriptor(&q);
+#endif
 
          if( stream->dvb_au )
          {

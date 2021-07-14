@@ -337,7 +337,7 @@ void write_cue_identifier_descriptor(bs_t *s)
 {
     bs_write(s, 8, 0x8a); // descriptor_tag
     bs_write(s, 8, 0x01); // descriptor_length
-    bs_write(s, 8, 0x00); // splice, insert, null
+    bs_write(s, 8, 0x01); // all commands
 }
 
 void write_registration_descriptor( bs_t *s, int descriptor_tag, int descriptor_length, char *format_id )

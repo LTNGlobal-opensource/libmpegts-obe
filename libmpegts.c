@@ -770,8 +770,10 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
          /* reset temporary bitstream context for streams loop */
          bs_init( &q, temp1, 512 );
 
-         if( stream->stream_format != LIBMPEGTS_ANCILLARY_RDD11 )
-             write_data_stream_alignment_descriptor( &q );
+         if (stream->stream_format != LIBMPEGTS_ANCILLARY_RDD11 &&
+             stream->stream_format != LIBMPEGTS_TABLE_SECTION) {
+             write_data_stream_alignment_descriptor(&q);
+         }
 
          if(stream->stream_format == LIBMPEGTS_TABLE_SECTION)
              write_cue_identifier_descriptor(&q);

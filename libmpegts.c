@@ -748,8 +748,9 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
     else if( w->ts_type == TS_TYPE_BLU_RAY )
         write_registration_descriptor( &q, REGISTRATION_DESCRIPTOR_TAG, 4, "HDMV" );
 
-    /* Optional descriptor(s) here */
-    write_cue_registration_descriptor(&q);
+    if (ts_get_scte35_enable(w)) {
+        write_cue_registration_descriptor(&q);
+    }
     write_user_defined_descriptor(w, &q);
 
     bs_flush( &q );
@@ -2745,6 +2746,16 @@ size_t libmpegts_frame_serializer_read(ts_writer_t *w, ts_frame_t **frame)
 	*frame = f;
 
 	return len;
+}
+
+int ts_get_scte35_enable(ts_writer_t *w)
+{
+	return w->scte35_enabled;
+}
+
+void ts_set_scte35_enable(ts_writer_t *w, int enable)
+{
+	w->scte35_enabled = enable;
 }
 
 void ts_set_ve_version(ts_writer_t *w, uint8_t major, uint8_t minor, uint8_t patch)

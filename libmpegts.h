@@ -699,4 +699,7 @@ void ts_show_queues(ts_writer_t *w);
 void ts_set_ve_version(ts_writer_t *w, uint8_t major, uint8_t minor, uint8_t patch);
 
 void ts_set_section_padding(ts_writer_t *w, int section_padding);
+void ts_set_scte35_enable(ts_writer_t *w, int enable);
+int  ts_get_scte35_enable(ts_writer_t *w);
+
 #endif

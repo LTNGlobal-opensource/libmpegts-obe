@@ -362,6 +362,8 @@ struct ts_writer_t
     uint8_t ve_sw_patch;
 
     int section_padding; /* 0=adaptation, 1=packet */
+
+    int scte35_enabled; /* 0=false, no scte35 descriptors inserted, 1=add descriptors. */
 };
 
 enum adaptation_field_control_e

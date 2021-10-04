@@ -1916,6 +1916,11 @@ void ts_remove_sdt( ts_writer_t *w )
     w->sdt = NULL;
 }
 
+int ts_query_num_buffered_frames(ts_writer_t *w)
+{
+    return w->num_buffered_frames;
+}
+
 void ts_show_queues(ts_writer_t *w)
 {
     w->dump_buffered_frames = 1;

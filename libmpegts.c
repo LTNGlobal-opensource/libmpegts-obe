@@ -2086,15 +2086,16 @@ if ((frames + z)->pid == 0x32)
     }
 
     /* Previously queued PES frames exceeding an ideal cache size? */
-    if (w->num_buffered_frames > 128) {
+    if (w->num_buffered_frames > 256) {
         /* Warning once per second. */
         static time_t last = 0, now;
         time(&now);
         if (last != now) {
            last = now;
            fprintf(stderr, "libmpegts: %s() Warning: Having %d buffered frames is beyond normality.\n", __func__, w->num_buffered_frames);
+           fprintf(stderr, "libmpegts: %s()          Here's the first 32\n", __func__);
            queued_pes = w->buffered_frames;
-           for (int i = 0; i < w->num_buffered_frames; i++) {
+           for (int i = 0; i < 32; i++) {
                printf("frm#%6d %s dts %" PRIi64 "  pts %" PRIi64 "  iat: %" PRIi64 "  fat: %" PRIi64 "\n", i,
                    IS_VIDEO(queued_pes[i]->stream) ? "video" : "audio",
                    queued_pes[i]->dts,

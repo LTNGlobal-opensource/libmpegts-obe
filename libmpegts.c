@@ -293,6 +293,7 @@ static const int steam_type_table[][2] =
     { LIBMPEGTS_DVB_VBI,         PRIVATE_DATA },
     { LIBMPEGTS_ANCILLARY_RDD11, PRIVATE_DATA },
     { LIBMPEGTS_ANCILLARY_2038,  PRIVATE_DATA },
+    { LIBMPEGTS_ANCILLARY_2031,  PRIVATE_DATA },
     { LIBMPEGTS_TABLE_SECTION,   PRIVATE_USER },
     { 0 },
 };
@@ -856,6 +857,10 @@ static int write_pmt( ts_writer_t *w, ts_int_program_t *program )
          {
              write_registration_descriptor( &q, REGISTRATION_DESCRIPTOR_TAG, 4, "VANC" );
              write_anc_data_descriptor( &q );
+         }
+         else if( stream->stream_format == LIBMPEGTS_ANCILLARY_2031 )
+         {
+            write_teletext_descriptor(&q, stream, 0);
          }
 
          // TODO other stream_type descriptors
@@ -2237,7 +2242,7 @@ if ((frames + z)->pid == 0x32)
            return -1;
         }
 
-        if (stream->stream_format == LIBMPEGTS_ANCILLARY_2038) {
+        if (stream->stream_format == LIBMPEGTS_ANCILLARY_2038 || stream->stream_format == LIBMPEGTS_ANCILLARY_2031) {
             new_pes[i]->header_size = 0;
             new_pes[i]->header_size = write_pes_full(w, program, &frames[i], new_pes[i], 0);
             new_pes[i]->dts = 0;
@@ -2324,7 +2329,8 @@ if ((frames + z)->pid == 0x32)
         {
             stream = queued_pes[i]->stream;
             if ((stream->stream_format == LIBMPEGTS_TABLE_SECTION) ||
-                (stream->stream_format == LIBMPEGTS_ANCILLARY_2038)) {
+                (stream->stream_format == LIBMPEGTS_ANCILLARY_2038) ||
+                (stream->stream_format == LIBMPEGTS_ANCILLARY_2031)) {
                 /* Immediate eject the PSIP */
                 pes = queued_pes[i];
                 break;

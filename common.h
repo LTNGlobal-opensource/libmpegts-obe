@@ -311,6 +311,7 @@ struct ts_writer_t
 
     int pat_period;
     int pcr_period;
+    int64_t pcr_adjustment; /* Defaults to zero. Allows the app to drift the pcr back and forwards */
     int sdt_period;
     int first_input;
 

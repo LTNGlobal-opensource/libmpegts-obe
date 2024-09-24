@@ -568,6 +568,13 @@ static int write_adaptation_field( ts_writer_t *w, bs_t *s, ts_int_program_t *pr
 
              program->last_pcr = pcr;
 
+             /* Any PCR output will move backwards by a small amount
+              * so the audio doesn't get there too quickly in
+              * normal latency mode, triggering a timing violation.
+              * Confirable, defaults to zero.
+              */
+             pcr += (27000 * w->pcr_adjustment);
+
              base = (pcr / 300) % mod;
              extension = pcr % 300;
 
@@ -2787,4 +2794,16 @@ void ts_set_ve_version(ts_writer_t *w, uint8_t major, uint8_t minor, uint8_t pat
 void ts_set_section_padding(ts_writer_t *w, int section_padding)
 {
 	w->section_padding = section_padding;
+}
+
+/* We want to be able to adjust the output PCR, by N ms,
+ * to buy enough time for the media PTS's to arrive early,
+ * but we don't want to adjust the INTERNAL pcr because
+ * it determines when media PTS'd packets and elligable for
+ * output.
+ */
+int ts_setup_pcr_adjustment(ts_writer_t *w, int64_t ms)
+{
+	w->pcr_adjustment = ms;
+	return 0; /* Success */
 }

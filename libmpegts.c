@@ -2807,3 +2807,19 @@ int ts_setup_pcr_adjustment(ts_writer_t *w, int64_t ms)
 	w->pcr_adjustment = ms;
 	return 0; /* Success */
 }
+
+uint8_t ts_writer_get_patpmt_version(ts_writer_t *w)
+{
+	return w->pat_version;
+}
+
+int ts_writer_set_patpmt_version(ts_writer_t *w, uint8_t v)
+{
+	w->pat_version = v;
+	for (int i = 0; i < w->num_programs; i++) {
+		w->programs[i]->pmt_version = v;
+	}
+
+	return 0;
+}
+

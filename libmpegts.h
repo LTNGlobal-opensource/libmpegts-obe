@@ -704,5 +704,7 @@ void ts_set_scte35_enable(ts_writer_t *w, int enable);
 int  ts_get_scte35_enable(ts_writer_t *w);
 int  ts_query_num_buffered_frames(ts_writer_t *w);
 int  ts_setup_pcr_adjustment(ts_writer_t *w, int64_t ms);
+uint8_t ts_writer_get_patpmt_version(ts_writer_t *w);
+int  ts_writer_set_patpmt_version(ts_writer_t *w, uint8_t v);
 
 #endif

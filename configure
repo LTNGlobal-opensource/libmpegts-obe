@@ -271,10 +271,10 @@ case $host_cpu in
   arm*)
     ARCH="ARM"
     if [ "$SYS" = MACOSX ] ; then
-      # build for armv7 by default
+      # build for arm64 by default
       if ! echo $CFLAGS | grep -Eq '\-arch' ; then
-        CFLAGS="$CFLAGS -arch armv7"
-        LDFLAGS="$LDFLAGS -arch armv7"
+        CFLAGS="$CFLAGS -arch arm64"
+        LDFLAGS="$LDFLAGS -arch arm64"
       fi
     fi
     ;;
